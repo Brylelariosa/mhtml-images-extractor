@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Extractor Pro</title>
+    <style>
+        :root { --primary: #2563eb; --success: #16a34a; --bg: #f3f4f6; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; color: #1f2937; }
+        
+        /* Layout */
+        .container { max-width: 800px; width: 100%; display: grid; gap: 1.5rem; }
+        .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        
+        /* Headers */
+        h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #111827; }
+        p { color: #6b7280; margin: 0; font-size: 0.95rem; }
+
+        /* Controls Grid */
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+        .setting-box { background: #f9fafb; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; }
+        .setting-label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .range-wrap { display: flex; align-items: center; gap: 10px; }
+        
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed #d1d5db; border-radius: 0.75rem; padding: 3rem 1rem;
+            text-align: center; cursor: pointer; transition: all 0.2s; background: #f9fafb;
+            margin-top: 1.5rem;
+        }
+        .drop-zone:hover, .drag-active { border-color: var(--primary); background: #eff6ff; }
+        .icon { width: 48px; height: 48px; color: #9ca3af; margin-bottom: 10px; }
+
+        /* Progress */
+        .progress-area { margin-top: 1.5rem; display: none; }
+        .progress-bar-bg { width: 100%; background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .progress-bar { background: var(--primary); height: 100%; width: 0%; transition: width 0.2s; }
+        .status-row { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 500; }
+
+        /* Gallery */
+        .gallery-area { margin-top: 1.5rem; display: none; }
+        .gallery-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.5rem; max-height: 300px; overflow-y: auto;
+            padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+        }
+        .gallery-item { position: relative; padding-top: 140%; background: #eee; border-radius: 4px; overflow: hidden; }
+        .gallery-item img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Buttons */
+        .btn-group { display: flex; gap: 10px; margin-top: 1.5rem; display: none; }
+        .btn {
+            flex: 1; padding: 0.75rem; border: none; border-radius: 0.5rem;
+            font-weight: 600; cursor: pointer; text-align: center; text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .btn-primary { background: var(--success); color: white; }
+        .btn-secondary { background: #4b5563; color: white; }
+        .btn:hover { opacity: 0.9; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h1>Offline Manga Extractor Pro</h1>
+        <p>Extract images from MHTML/MHT files. Supports batch processing and auto-sorting.</p>
+
+        <div class="controls">
+            <div class="setting-box">
+                <label class="setting-label">Filter Small Images (Junk)</label>
+                <div class="range-wrap">
+                    <input type="range" id="size-filter" min="0" max="200" value="50" step="10">
+                    <span style="font-size: 0.9rem; width: 60px;"><span id="size-val">50</span> KB</span>
+                </div>
+                <p style="font-size: 0.75rem; margin-top: 5px;">Skips icons/logos smaller than this size.</p>
+            </div>
+            <div class="setting-box">
+                <label class="setting-label">Organization</label>
+                <p style="font-size: 0.85rem; line-height: 1.4;">
+                    If you upload multiple chapters, they will be organized into folders inside a single ZIP file.
+                </p>
+            </div>
+        </div>
+
+        <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" accept=".mhtml,.mht" multiple style="display:none">
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <div style="font-weight: 500; color: #4b5563;">Drag & drop MHTML files here<br>(Single or Multiple Chapters)</div>
+        </div>
+
+        <div id="progress-area" class="progress-area">
+            <div class="status-row">
+                <span id="status-text">Starting worker...</span>
+                <span id="percent-text">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="gallery-area" class="gallery-area">
+            <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Preview (First 20 Pages)</h3>
+            <div id="gallery-grid" class="gallery-grid"></div>
+        </div>
+
+        <div id="action-area" class="btn-group">
+            <button id="preview-btn" class="btn btn-secondary">Show Preview</button>
+            <button id="download-btn" class="btn btn-primary">Download ZIP</button>
+        </div>
+    </div>
+</div>
+
+<script id="worker-code" type="javascript/worker">
+    self.onmessage = async function(e) {
+        const { files, minSizeKB } = e.data;
+        const processedImages = [];
+        const totalFiles = files.length;
+
+        // 1. Process Loop
+        for (let i = 0; i < totalFiles; i++) {
+            const file = files[i];
+            const safeName = file.name.replace(/\.(mhtml|mht)$/i, "").trim();
+            
+            self.postMessage({ type: 'progress', text: `Parsing: ${safeName}`, percent: (i / totalFiles) * 70 });
+            
+            try {
+                // Determine folder path: if multiple files, use filename as folder. If single, use root.
+                const folderPrefix = totalFiles > 1 ? safeName + "/" : "";
+                
+                const images = parseMHTML(file.content, folderPrefix, minSizeKB);
+                
+                // Sort by name for correct manga reading order (001, 002...)
+                const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
+                images.sort((a, b) => collator.compare(a.name, b.name));
+
+                // Rename sequentially to ensure clean sorting: 001.jpg, 002.jpg...
+                images.forEach((img, idx) => {
+                    const seqName = String(idx + 1).padStart(3, '0') + "." + img.ext;
+                    img.zipName = folderPrefix + seqName;
+                    processedImages.push(img);
+                });
+
+            } catch (err) {
+                console.error("Error parsing " + safeName, err);
+            }
+        }
+
+        self.postMessage({ type: 'progress', text: `Generating ZIP (${processedImages.length} images)...`, percent: 80 });
+
+        // 2. Create ZIP
+        if (processedImages.length === 0) {
+            self.postMessage({ type: 'error', message: "No images found or all filtered out." });
+            return;
+        }
+
+        const zipBlob = createZip(processedImages);
+        
+        // 3. Extract a preview (max 20 images)
+        const preview = processedImages.slice(0, 20).map(img => ({
+            blob: new Blob([img.data], {type: "image/"+(img.ext === 'jpg' ? 'jpeg' : img.ext)})
+        }));
+
+        self.postMessage({ 
+            type: 'done', 
+            zipBlob: zipBlob, 
+            preview: preview,
+            count: processedImages.length 
+        });
+    };
+
+    function parseMHTML(content, folderPrefix, minSizeKB) {
+        const boundaryMatch = content.match(/boundary="?(.+?)"?(\s|;|$)/i);
+        if (!boundaryMatch) return [];
+        
+        const boundary = "--" + boundaryMatch[1];
+        const parts = content.split(boundary);
+        const images = [];
+        const minSizeBytes = minSizeKB * 1024;
+
+        parts.forEach(part => {
+            // Find header/body split
+            const headerEnd = part.indexOf("\n\n");
+            const splitSeq = headerEnd === -1 ? "\r\n\r\n" : "\n\n";
+            const splitIdx = part.indexOf(splitSeq);
+
+            if (splitIdx !== -1) {
+                const headers = part.substring(0, splitIdx);
+                const body = part.substring(splitIdx + splitSeq.length);
+
+                const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
+                const encMatch = headers.match(/Content-Transfer-Encoding:\s*base64/i);
+
+                if (typeMatch && encMatch) {
+                    const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
+                    let loc = (headers.match(/Content-Location:\s*(.*)/i) || [])[1] || `img_${Math.random()}`;
+                    try { loc = decodeURIComponent(loc.trim()); } catch(e){}
+                    const originalName = loc.split('/').pop().split('?')[0];
+
+                    const cleanBody = body.replace(/[\r\n]/g, '');
+                    if (cleanBody) {
+                        // Base64 Decode
+                        const binaryString = atob(cleanBody);
+                        const len = binaryString.length;
+                        
+                        // Smart Filter: Size Check
+                        if (len < minSizeBytes) return; // Skip junk
+
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+                        
+                        images.push({ name: originalName, data: bytes, ext: ext });
+                    }
+                }
+            }
+        });
+        return images;
+    }
+
+    // --- ZIP Logic (Store only, support folders) ---
+    function createZip(files) {
+        const parts = [];
+        const centralDirectory = [];
+        let offset = 0;
+        const textEnc = new TextEncoder();
+        
+        // CRC32 Table
+        const crcTable = new Int32Array(256);
+        for (let i=0; i<256; i++) {
+            let c = i;
+            for (let k=0; k<8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+            crcTable[i] = c;
+        }
+        const crc32 = (data) => {
+            let crc = -1;
+            for (let i=0; i<data.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ data[i]) & 0xFF];
+            return (crc ^ -1) >>> 0;
+        };
+
+        files.forEach(file => {
+            const nameBytes = textEnc.encode(file.zipName);
+            const data = file.data;
+            const crc = crc32(data);
+
+            // Local File Header
+            const header = new Uint8Array(30 + nameBytes.length);
+            const v = new DataView(header.buffer);
+            v.setUint32(0, 0x04034b50, true);
+            v.setUint16(4, 0x000A, true); // Version
+            v.setUint16(6, 0x0000, true); // Flags
+            v.setUint16(8, 0x0000, true); // No Compression
+            v.setUint32(14, crc, true);
+            v.setUint32(18, data.length, true); // Compressed
+            v.setUint32(22, data.length, true); // Uncompressed
+            v.setUint16(26, nameBytes.length, true);
+            v.setUint16(28, 0, true);
+            header.set(nameBytes, 30);
+
+            parts.push(header);
+            parts.push(data);
+
+            // Central Directory Header
+            const cd = new Uint8Array(46 + nameBytes.length);
+            const cdv = new DataView(cd.buffer);
+            cdv.setUint32(0, 0x02014b50, true);
+            cdv.setUint16(4, 0x000A, true);
+            cdv.setUint16(6, 0x000A, true);
+            cdv.setUint16(8, 0x0000, true);
+            cdv.setUint16(10, 0x0000, true);
+            cdv.setUint32(16, crc, true);
+            cdv.setUint32(20, data.length, true);
+            cdv.setUint32(24, data.length, true);
+            cdv.setUint16(28, nameBytes.length, true);
+            cdv.setUint16(30, 0, true);
+            cdv.setUint16(32, 0, true);
+            cdv.setUint32(42, offset, true);
+            cd.set(nameBytes, 46);
+
+            centralDirectory.push(cd);
+            offset += header.length + data.length;
+        });
+
+        const cdSize = centralDirectory.reduce((a, c) => a + c.length, 0);
+        const eocd = new Uint8Array(22);
+        const ev = new DataView(eocd.buffer);
+        ev.setUint32(0, 0x06054b50, true);
+        ev.setUint16(8, files.length, true);
+        ev.setUint16(10, files.length, true);
+        ev.setUint32(12, cdSize, true);
+        ev.setUint32(16, offset, true);
+
+        return new Blob([...parts, ...centralDirectory, eocd], {type: "application/zip"});
+    }
+</script>
+
+<script>
+    // --- MAIN THREAD JS ---
+    
+    // 1. Worker Setup
+    const workerBlob = new Blob([document.getElementById('worker-code').textContent], {type: "text/javascript"});
+    const workerUrl = URL.createObjectURL(workerBlob);
+    let worker = null;
+
+    // 2. UI References
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const sizeInput = document.getElementById('size-filter');
+    const sizeVal = document.getElementById('size-val');
+    const progressArea = document.getElementById('progress-area');
+    const progressBar = document.getElementById('progress-bar');
+    const statusText = document.getElementById('status-text');
+    const percentText = document.getElementById('percent-text');
+    const actionArea = document.getElementById('action-area');
+    const downloadBtn = document.getElementById('download-btn');
+    const previewBtn = document.getElementById('preview-btn');
+    const galleryArea = document.getElementById('gallery-area');
+    const galleryGrid = document.getElementById('gallery-grid');
+
+    // 3. Global State
+    let currentZipBlob = null;
+    let previewData = [];
+
+    // 4. Event Listeners
+    sizeInput.oninput = (e) => sizeVal.textContent = e.target.value;
+    
+    dropZone.onclick = () => fileInput.click();
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); };
+    dropZone.ondragleave = () => dropZone.classList.remove('drag-active');
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-active');
+        if (e.dataTransfer.files.length) startProcessing(e.dataTransfer.files);
+    };
+    fileInput.onchange = (e) => {
+        if (e.target.files.length) startProcessing(e.target.files);
+    };
+
+    downloadBtn.onclick = () => {
+        if (!currentZipBlob) return;
+        const url = URL.createObjectURL(currentZipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Manga_Extracted.zip";
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    previewBtn.onclick = () => {
+        galleryArea.classList.toggle('hidden');
+        if (!galleryArea.classList.contains('hidden') && galleryGrid.children.length === 0) {
+            renderPreview();
+        }
+    };
+
+    // 5. Processing Logic
+    async function startProcessing(fileList) {
+        // Reset UI
+        if (worker) worker.terminate(); // Kill old worker if exists
+        worker = new Worker(workerUrl);
+        setupWorkerHandler(worker);
+
+        progressArea.style.display = 'block';
+        actionArea.style.display = 'none';
+        galleryArea.classList.add('hidden');
+        galleryGrid.innerHTML = '';
+        currentZipBlob = null;
+        
+        // Read Files
+        const filesData = [];
+        const total = fileList.length;
+        
+        updateProgress(0, `Reading ${total} files...`);
+
+        // We read files in Main thread (FileReader is fast enough usually) 
+        // passing File objects directly to worker is tricky in some browsers without Transferable objects,
+        // so we read content as text here.
+        for (let i = 0; i < total; i++) {
+            updateProgress((i/total)*10, `Reading ${fileList[i].name}...`);
+            try {
+                const text = await readFileAsText(fileList[i]);
+                filesData.push({ name: fileList[i].name, content: text });
+            } catch (e) {
+                console.error("Failed to read file", fileList[i].name);
+            }
+        }
+
+        // Send to Worker
+        const minSize = parseInt(sizeInput.value, 10);
+        worker.postMessage({ files: filesData, minSizeKB: minSize });
+    }
+
+    function setupWorkerHandler(w) {
+        w.onmessage = (e) => {
+            const data = e.data;
+            if (data.type === 'progress') {
+                updateProgress(data.percent, data.text);
+            } else if (data.type === 'done') {
+                currentZipBlob = data.zipBlob;
+                previewData = data.preview;
+                
+                updateProgress(100, `Done! Extracted ${data.count} images.`);
+                actionArea.style.display = 'flex';
+                
+                // Render preview immediately if small
+                renderPreview();
+            } else if (data.type === 'error') {
+                statusText.textContent = "Error: " + data.message;
+                statusText.style.color = "red";
+            }
+        };
+    }
+
+    function renderPreview() {
+        galleryGrid.innerHTML = '';
+        previewData.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(p.blob);
+            div.appendChild(img);
+            galleryGrid.appendChild(div);
+        });
+        if (previewData.length > 0) galleryArea.style.display = 'block';
+    }
+
+    function updateProgress(percent, text) {
+        const p = Math.min(100, Math.max(0, percent));
+        progressBar.style.width = p + '%';
+        statusText.textContent = text;
+        percentText.textContent = Math.round(p) + '%';
+    }
+
+    function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    }
+</script>
+
+</body>
+</html>
