@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manga Extractor Pro</title>
+    <title>Manga Extractor Pro v2</title>
     <style>
-        :root { --primary: #2563eb; --success: #16a34a; --bg: #f3f4f6; }
+        :root { --primary: #2563eb; --success: #16a34a; --danger: #dc2626; --bg: #f3f4f6; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; color: #1f2937; }
         
         /* Layout */
@@ -21,6 +21,10 @@
         .setting-box { background: #f9fafb; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; }
         .setting-label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; }
         .range-wrap { display: flex; align-items: center; gap: 10px; }
+
+        /* Checkbox styling */
+        .checkbox-wrapper { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9rem; cursor: pointer; }
+        .checkbox-wrapper input { width: 16px; height: 16px; cursor: pointer; }
         
         /* Drop Zone */
         .drop-zone {
@@ -56,6 +60,7 @@
         }
         .btn-primary { background: var(--success); color: white; }
         .btn-secondary { background: #4b5563; color: white; }
+        .btn-danger { background: var(--danger); color: white; max-width: 100px; }
         .btn:hover { opacity: 0.9; }
 
         .hidden { display: none !important; }
@@ -65,30 +70,41 @@
 
 <div class="container">
     <div class="card">
-        <h1>Offline Manga Extractor Pro</h1>
-        <p>Extract images from MHTML/MHT files. Supports batch processing and auto-sorting.</p>
+        <h1>Manga Extractor Pro <span style="font-size: 0.8rem; color: var(--primary); vertical-align: middle; background: #eff6ff; padding: 2px 8px; border-radius: 12px;">v2.0</span></h1>
+        <p>Extract manga chapters from MHTML files. Fast, offline, and secure.</p>
 
         <div class="controls">
             <div class="setting-box">
-                <label class="setting-label">Filter Small Images (Junk)</label>
+                <label class="setting-label">Filter Junk Images</label>
                 <div class="range-wrap">
                     <input type="range" id="size-filter" min="0" max="200" value="50" step="10">
                     <span style="font-size: 0.9rem; width: 60px;"><span id="size-val">50</span> KB</span>
                 </div>
-                <p style="font-size: 0.75rem; margin-top: 5px;">Skips icons/logos smaller than this size.</p>
+                <p style="font-size: 0.75rem; margin-top: 5px;">Removes small icons and ads.</p>
             </div>
+
             <div class="setting-box">
-                <label class="setting-label">Organization</label>
-                <p style="font-size: 0.85rem; line-height: 1.4;">
-                    If you upload multiple chapters, they will be organized into folders inside a single ZIP file.
-                </p>
+                <label class="setting-label">Export Settings</label>
+                
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="reverse-sort"> 
+                    Reverse Image Order (Z-A)
+                </label>
+
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="cbz-ext" checked> 
+                    Save as .CBZ (Comic Book Zip)
+                </label>
             </div>
         </div>
 
         <div id="drop-zone" class="drop-zone">
             <input type="file" id="file-input" accept=".mhtml,.mht" multiple style="display:none">
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-            <div style="font-weight: 500; color: #4b5563;">Drag & drop MHTML files here<br>(Single or Multiple Chapters)</div>
+            <div style="font-weight: 500; color: #4b5563;">
+                Drag & drop MHTML files here<br>
+                <span style="font-size: 0.85rem; color: #9ca3af; font-weight: normal;">(Processes multiple chapters at once)</span>
+            </div>
         </div>
 
         <div id="progress-area" class="progress-area">
@@ -107,71 +123,85 @@
         </div>
 
         <div id="action-area" class="btn-group">
+            <button id="reset-btn" class="btn btn-danger">Reset</button>
             <button id="preview-btn" class="btn btn-secondary">Show Preview</button>
-            <button id="download-btn" class="btn btn-primary">Download ZIP</button>
+            <button id="download-btn" class="btn btn-primary">Download Manga</button>
         </div>
     </div>
 </div>
 
 <script id="worker-code" type="javascript/worker">
     self.onmessage = async function(e) {
-        const { files, minSizeKB } = e.data;
+        // We now receive File objects directly
+        const { files, config } = e.data;
         const processedImages = [];
         const totalFiles = files.length;
 
-        // 1. Process Loop
-        for (let i = 0; i < totalFiles; i++) {
-            const file = files[i];
-            const safeName = file.name.replace(/\.(mhtml|mht)$/i, "").trim();
-            
-            self.postMessage({ type: 'progress', text: `Parsing: ${safeName}`, percent: (i / totalFiles) * 70 });
-            
-            try {
-                // Determine folder path: if multiple files, use filename as folder. If single, use root.
+        try {
+            // 1. Process Loop
+            for (let i = 0; i < totalFiles; i++) {
+                const file = files[i];
+                const safeName = file.name.replace(/\.(mhtml|mht)$/i, "").trim();
+                
+                self.postMessage({ type: 'progress', text: `Reading & Parsing: ${safeName}`, percent: (i / totalFiles) * 70 });
+                
+                // PERFORMANCE FIX: Read file content inside worker using .text()
+                // This prevents the main UI thread from freezing on large files.
+                const content = await file.text();
+
+                // Determine folder path
                 const folderPrefix = totalFiles > 1 ? safeName + "/" : "";
                 
-                const images = parseMHTML(file.content, folderPrefix, minSizeKB);
+                // Parse
+                let images = parseMHTML(content, folderPrefix, config.minSizeKB);
                 
-                // Sort by name for correct manga reading order (001, 002...)
+                // Sort Logic (Natural Sort: 1, 2, 10 instead of 1, 10, 2)
                 const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
                 images.sort((a, b) => collator.compare(a.name, b.name));
 
-                // Rename sequentially to ensure clean sorting: 001.jpg, 002.jpg...
+                // NEW: Reverse Logic
+                if (config.reverse) {
+                    images.reverse();
+                }
+
+                // Rename sequentially: 001.jpg, 002.jpg...
                 images.forEach((img, idx) => {
                     const seqName = String(idx + 1).padStart(3, '0') + "." + img.ext;
                     img.zipName = folderPrefix + seqName;
                     processedImages.push(img);
                 });
-
-            } catch (err) {
-                console.error("Error parsing " + safeName, err);
             }
+
+            self.postMessage({ type: 'progress', text: `Generating Archive (${processedImages.length} images)...`, percent: 85 });
+
+            // 2. Create ZIP
+            if (processedImages.length === 0) {
+                self.postMessage({ type: 'error', message: "No images found. Try lowering the size filter." });
+                return;
+            }
+
+            const zipBlob = createZip(processedImages);
+            
+            // 3. Extract a preview (max 20 images)
+            const preview = processedImages.slice(0, 20).map(img => ({
+                blob: new Blob([img.data], {type: "image/"+(img.ext === 'jpg' ? 'jpeg' : img.ext)})
+            }));
+
+            self.postMessage({ 
+                type: 'done', 
+                zipBlob: zipBlob, 
+                preview: preview,
+                count: processedImages.length 
+            });
+
+        } catch (err) {
+            console.error(err);
+            self.postMessage({ type: 'error', message: "Critical Error: " + err.message });
         }
-
-        self.postMessage({ type: 'progress', text: `Generating ZIP (${processedImages.length} images)...`, percent: 80 });
-
-        // 2. Create ZIP
-        if (processedImages.length === 0) {
-            self.postMessage({ type: 'error', message: "No images found or all filtered out." });
-            return;
-        }
-
-        const zipBlob = createZip(processedImages);
-        
-        // 3. Extract a preview (max 20 images)
-        const preview = processedImages.slice(0, 20).map(img => ({
-            blob: new Blob([img.data], {type: "image/"+(img.ext === 'jpg' ? 'jpeg' : img.ext)})
-        }));
-
-        self.postMessage({ 
-            type: 'done', 
-            zipBlob: zipBlob, 
-            preview: preview,
-            count: processedImages.length 
-        });
     };
 
     function parseMHTML(content, folderPrefix, minSizeKB) {
+        // Robust boundary detection
         const boundaryMatch = content.match(/boundary="?(.+?)"?(\s|;|$)/i);
         if (!boundaryMatch) return [];
         
@@ -181,8 +211,8 @@
         const minSizeBytes = minSizeKB * 1024;
 
         parts.forEach(part => {
-            // Find header/body split
             const headerEnd = part.indexOf("\n\n");
+            // Fallback for different line endings
             const splitSeq = headerEnd === -1 ? "\r\n\r\n" : "\n\n";
             const splitIdx = part.indexOf(splitSeq);
 
@@ -195,23 +225,26 @@
 
                 if (typeMatch && encMatch) {
                     const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
+                    // Clean location extraction
                     let loc = (headers.match(/Content-Location:\s*(.*)/i) || [])[1] || `img_${Math.random()}`;
                     try { loc = decodeURIComponent(loc.trim()); } catch(e){}
                     const originalName = loc.split('/').pop().split('?')[0];
 
-                    const cleanBody = body.replace(/[\r\n]/g, '');
+                    const cleanBody = body.replace(/\s/g, ''); // Aggressive whitespace cleanup
+                    
                     if (cleanBody) {
-                        // Base64 Decode
-                        const binaryString = atob(cleanBody);
-                        const len = binaryString.length;
-                        
-                        // Smart Filter: Size Check
-                        if (len < minSizeBytes) return; // Skip junk
-
-                        const bytes = new Uint8Array(len);
-                        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-                        
-                        images.push({ name: originalName, data: bytes, ext: ext });
+                        try {
+                            const binaryString = atob(cleanBody);
+                            const len = binaryString.length;
+                            
+                            if (len >= minSizeBytes) {
+                                const bytes = new Uint8Array(len);
+                                for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+                                images.push({ name: originalName, data: bytes, ext: ext });
+                            }
+                        } catch (e) {
+                            // Skip corrupt base64 chunks
+                        }
                     }
                 }
             }
@@ -219,14 +252,13 @@
         return images;
     }
 
-    // --- ZIP Logic (Store only, support folders) ---
+    // Standard ZIP Logic (Store/No-Compression)
     function createZip(files) {
         const parts = [];
         const centralDirectory = [];
         let offset = 0;
         const textEnc = new TextEncoder();
         
-        // CRC32 Table
         const crcTable = new Int32Array(256);
         for (let i=0; i<256; i++) {
             let c = i;
@@ -244,16 +276,15 @@
             const data = file.data;
             const crc = crc32(data);
 
-            // Local File Header
             const header = new Uint8Array(30 + nameBytes.length);
             const v = new DataView(header.buffer);
             v.setUint32(0, 0x04034b50, true);
-            v.setUint16(4, 0x000A, true); // Version
-            v.setUint16(6, 0x0000, true); // Flags
-            v.setUint16(8, 0x0000, true); // No Compression
+            v.setUint16(4, 0x000A, true);
+            v.setUint16(6, 0x0000, true);
+            v.setUint16(8, 0x0000, true);
             v.setUint32(14, crc, true);
-            v.setUint32(18, data.length, true); // Compressed
-            v.setUint32(22, data.length, true); // Uncompressed
+            v.setUint32(18, data.length, true);
+            v.setUint32(22, data.length, true);
             v.setUint16(26, nameBytes.length, true);
             v.setUint16(28, 0, true);
             header.set(nameBytes, 30);
@@ -261,7 +292,6 @@
             parts.push(header);
             parts.push(data);
 
-            // Central Directory Header
             const cd = new Uint8Array(46 + nameBytes.length);
             const cdv = new DataView(cd.buffer);
             cdv.setUint32(0, 0x02014b50, true);
@@ -308,13 +338,18 @@
     const fileInput = document.getElementById('file-input');
     const sizeInput = document.getElementById('size-filter');
     const sizeVal = document.getElementById('size-val');
+    const reverseCheck = document.getElementById('reverse-sort');
+    const cbzCheck = document.getElementById('cbz-ext');
+    
     const progressArea = document.getElementById('progress-area');
     const progressBar = document.getElementById('progress-bar');
     const statusText = document.getElementById('status-text');
     const percentText = document.getElementById('percent-text');
+    
     const actionArea = document.getElementById('action-area');
     const downloadBtn = document.getElementById('download-btn');
     const previewBtn = document.getElementById('preview-btn');
+    const resetBtn = document.getElementById('reset-btn');
     const galleryArea = document.getElementById('gallery-area');
     const galleryGrid = document.getElementById('gallery-grid');
 
@@ -342,9 +377,13 @@
         const url = URL.createObjectURL(currentZipBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "Manga_Extracted.zip";
+        // Use .cbz if checked, otherwise .zip
+        const ext = cbzCheck.checked ? ".cbz" : ".zip";
+        a.download = "Manga_Extracted" + ext;
         a.click();
-        URL.revokeObjectURL(url);
+        
+        // Clean up URL object after a short delay
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     previewBtn.onclick = () => {
@@ -354,41 +393,44 @@
         }
     };
 
-    // 5. Processing Logic
-    async function startProcessing(fileList) {
-        // Reset UI
-        if (worker) worker.terminate(); // Kill old worker if exists
-        worker = new Worker(workerUrl);
-        setupWorkerHandler(worker);
-
-        progressArea.style.display = 'block';
+    resetBtn.onclick = () => {
+        // Reset Logic
+        if (worker) worker.terminate();
+        currentZipBlob = null;
+        previewData = [];
+        
+        // Clear UI
+        fileInput.value = '';
+        progressArea.style.display = 'none';
         actionArea.style.display = 'none';
         galleryArea.classList.add('hidden');
         galleryGrid.innerHTML = '';
-        currentZipBlob = null;
-        
-        // Read Files
-        const filesData = [];
-        const total = fileList.length;
-        
-        updateProgress(0, `Reading ${total} files...`);
+        progressBar.style.width = '0%';
+        statusText.textContent = 'Ready';
+    };
 
-        // We read files in Main thread (FileReader is fast enough usually) 
-        // passing File objects directly to worker is tricky in some browsers without Transferable objects,
-        // so we read content as text here.
-        for (let i = 0; i < total; i++) {
-            updateProgress((i/total)*10, `Reading ${fileList[i].name}...`);
-            try {
-                const text = await readFileAsText(fileList[i]);
-                filesData.push({ name: fileList[i].name, content: text });
-            } catch (e) {
-                console.error("Failed to read file", fileList[i].name);
-            }
-        }
+    // 5. Processing Logic
+    async function startProcessing(fileList) {
+        // Reset UI before starting
+        resetBtn.click();
+        progressArea.style.display = 'block';
+        statusText.textContent = "Initializing...";
 
-        // Send to Worker
-        const minSize = parseInt(sizeInput.value, 10);
-        worker.postMessage({ files: filesData, minSizeKB: minSize });
+        // Initialize Worker
+        worker = new Worker(workerUrl);
+        setupWorkerHandler(worker);
+
+        // Config Data
+        const config = {
+            minSizeKB: parseInt(sizeInput.value, 10),
+            reverse: reverseCheck.checked
+        };
+
+        // Convert FileList to Array (to pass to worker easily)
+        const filesArray = Array.from(fileList);
+
+        // Send Files directly to Worker (Transferable)
+        worker.postMessage({ files: filesArray, config: config });
     }
 
     function setupWorkerHandler(w) {
@@ -403,11 +445,11 @@
                 updateProgress(100, `Done! Extracted ${data.count} images.`);
                 actionArea.style.display = 'flex';
                 
-                // Render preview immediately if small
+                // Render preview automatically if not too many images
                 renderPreview();
             } else if (data.type === 'error') {
                 statusText.textContent = "Error: " + data.message;
-                statusText.style.color = "red";
+                statusText.style.color = "var(--danger)";
             }
         };
     }
@@ -429,16 +471,8 @@
         const p = Math.min(100, Math.max(0, percent));
         progressBar.style.width = p + '%';
         statusText.textContent = text;
+        statusText.style.color = "#1f2937"; // Reset color
         percentText.textContent = Math.round(p) + '%';
-    }
-
-    function readFileAsText(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsText(file);
-        });
     }
 </script>
 
