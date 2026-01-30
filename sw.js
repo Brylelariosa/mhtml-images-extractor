@@ -1,4 +1,4 @@
-// Updated Cache Name to force refresh
+// UPDATED: Version 2 to force the browser to reload your new index.html
 const CACHE_NAME = 'manga-extractor-v2';
 const ASSETS = [
     './',
@@ -6,16 +6,17 @@ const ASSETS = [
     './manifest.json'
 ];
 
+// Install: Cache files
 self.addEventListener('install', (e) => {
-    // Force the new service worker to take over immediately
+    // skipWaiting forces this new service worker to become active immediately
     self.skipWaiting(); 
     e.waitUntil(
         caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
     );
 });
 
+// Activate: Clean up old caches (v1)
 self.addEventListener('activate', (e) => {
-    // Clean up old caches (v1) to save space and prevent conflicts
     e.waitUntil(
         caches.keys().then((keyList) => {
             return Promise.all(keyList.map((key) => {
@@ -28,10 +29,10 @@ self.addEventListener('activate', (e) => {
     return self.clients.claim();
 });
 
+// Fetch: Serve from cache, fall back to network
 self.addEventListener('fetch', (e) => {
     e.respondWith(
         caches.match(e.request).then((response) => {
-            // Return cached response if found, otherwise fetch from network
             return response || fetch(e.request);
         })
     );
