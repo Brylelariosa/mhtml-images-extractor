@@ -1,68 +1,443 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manga Extractor Pro v2</title>
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="Offline Manga Extractor PWA - Extract images from MHTML files securely.">
+    <title>Manga Extractor Pro</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
     <style>
-        :root { --primary: #2563eb; --success: #16a34a; --danger: #dc2626; --bg: #f3f4f6; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; color: #1f2937; }
-        
-        /* Layout */
-        .container { max-width: 800px; width: 100%; display: grid; gap: 1.5rem; }
-        .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        
-        /* Headers */
-        h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #111827; }
-        p { color: #6b7280; margin: 0; font-size: 0.95rem; }
+        :root {
+            /* Light Theme */
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #e2e8f0;
+            --panel-bg: #f1f5f9;
+            --drop-bg: #f8fafc;
+            --drop-border: #cbd5e1;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            --modal-bg: rgba(255, 255, 255, 0.95);
+        }
 
-        /* Controls Grid */
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
-        .setting-box { background: #f9fafb; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; }
-        .setting-label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; }
-        .range-wrap { display: flex; align-items: center; gap: 10px; }
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --primary: #6366f1;
+            --primary-hover: #818cf8;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f1f5f9;
+            --text-sub: #94a3b8;
+            --border: #334155;
+            --panel-bg: #0f172a;
+            --drop-bg: #1e293b;
+            --drop-border: #475569;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            --modal-bg: rgba(15, 23, 42, 0.95);
+        }
 
-        /* Checkbox styling */
-        .checkbox-wrapper { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9rem; cursor: pointer; }
-        .checkbox-wrapper input { width: 16px; height: 16px; cursor: pointer; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* --- Layout --- */
+        .container { width: 100%; max-width: 750px; }
         
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, var(--primary), #818cf8);
+        }
+
+        /* Header */
+        .header-row { display: flex; justify-content: space-between; align-items: start; }
+        .header-actions { display: flex; gap: 10px; }
+        h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.025em; }
+        .badge {
+            font-size: 0.75rem; color: var(--primary); background: rgba(79, 70, 229, 0.1);
+            padding: 4px 10px; border-radius: 20px; vertical-align: middle;
+            font-weight: 600; margin-left: 10px; text-transform: uppercase; border: 1px solid rgba(79, 70, 229, 0.2);
+        }
+        .subtitle { color: var(--text-sub); margin-top: 0.5rem; font-size: 0.95rem; }
+
+        /* Buttons & Toggles */
+        .icon-btn {
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-main); cursor: pointer; padding: 8px;
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .icon-btn:hover { background: var(--panel-bg); }
+        
+        .install-btn {
+            background: var(--primary); color: white; border: none; 
+            padding: 8px 12px; font-size: 0.85rem; font-weight: 600;
+        }
+        .install-btn:hover { background: var(--primary-hover); }
+
+        /* --- Controls --- */
+        .controls-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem;
+        }
+        @media (max-width: 600px) { .controls-grid { grid-template-columns: 1fr; } }
+
+        .control-panel {
+            background: var(--panel-bg); padding: 1.25rem; border-radius: 8px;
+            border: 1px solid var(--border); transition: all 0.3s;
+        }
+        .control-label {
+            display: block; font-size: 0.75rem; font-weight: 700; 
+            text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-sub);
+            margin-bottom: 1rem;
+        }
+
+        /* Range Slider */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: var(--primary); cursor: pointer; margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: var(--border); border-radius: 2px;
+        }
+        .range-value { font-weight: 700; color: var(--primary); font-size: 1.1rem; min-width: 60px; text-align: right; }
+        .range-row { display: flex; align-items: center; gap: 15px; }
+
+        /* Toggles */
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+        .toggle-row:last-child { margin-bottom: 0; }
+        .toggle-text { font-size: 0.9rem; font-weight: 500; }
+        
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--border); transition: .3s; border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
         /* Drop Zone */
         .drop-zone {
-            border: 2px dashed #d1d5db; border-radius: 0.75rem; padding: 3rem 1rem;
-            text-align: center; cursor: pointer; transition: all 0.2s; background: #f9fafb;
-            margin-top: 1.5rem;
+            margin-top: 2rem; border: 2px dashed var(--drop-border); border-radius: 12px;
+            padding: 3rem 2rem; text-align: center; cursor: pointer;
+            transition: all 0.2s ease; background: var(--drop-bg);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        .drop-zone:hover, .drag-active { border-color: var(--primary); background: #eff6ff; }
-        .icon { width: 48px; height: 48px; color: #9ca3af; margin-bottom: 10px; }
+        .drop-zone:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
+        .drop-zone.drag-active { border-color: var(--primary); background: rgba(79, 70, 229, 0.1); transform: scale(0.99); }
+        
+        .icon-box {
+            width: 50px; height: 50px; background: var(--card-bg); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1rem; box-shadow: var(--shadow); color: var(--primary);
+            border: 1px solid var(--border);
+        }
+        .drop-title { font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .drop-sub { color: var(--text-sub); font-size: 0.85rem; }
 
         /* Progress */
-        .progress-area { margin-top: 1.5rem; display: none; }
-        .progress-bar-bg { width: 100%; background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 8px; }
-        .progress-bar { background: var(--primary); height: 100%; width: 0%; transition: width 0.2s; }
-        .status-row { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 500; }
+        .progress-container { margin-top: 2rem; display: none; }
+        .progress-info { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .progress-track { width: 100%; height: 8px; background: var(--border); border-radius: 10px; overflow: hidden; }
+        .progress-fill {
+            height: 100%; background: var(--primary); width: 0%; transition: width 0.2s ease;
+        }
 
         /* Gallery */
-        .gallery-area { margin-top: 1.5rem; display: none; }
+        .gallery-area { margin-top: 2rem; display: none; }
+        .gallery-header { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-sub); margin-bottom: 1rem; }
         .gallery-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 0.5rem; max-height: 300px; overflow-y: auto;
-            padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 0.5rem; max-height: 300px; overflow-y: auto; padding-right: 5px;
         }
-        .gallery-item { position: relative; padding-top: 140%; background: #eee; border-radius: 4px; overflow: hidden; }
+        .gallery-item {
+            position: relative; padding-top: 140%; background: var(--border);
+            border-radius: 4px; overflow: hidden; cursor: zoom-in;
+            transition: transform 0.2s;
+        }
+        .gallery-item:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         .gallery-item img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-        
-        /* Buttons */
-        .btn-group { display: flex; gap: 10px; margin-top: 1.5rem; display: none; }
-        .btn {
-            flex: 1; padding: 0.75rem; border: none; border-radius: 0.5rem;
-            font-weight: 600; cursor: pointer; text-align: center; text-decoration: none;
-            transition: opacity 0.2s;
-        }
-        .btn-primary { background: var(--success); color: white; }
-        .btn-secondary { background: #4b5563; color: white; }
-        .btn-danger { background: var(--danger); color: white; max-width: 100px; }
-        .btn:hover { opacity: 0.9; }
 
+        /* Buttons */
+        .btn-group { display: flex; gap: 1rem; margin-top: 2rem; display: none; }
+        .btn {
+            flex: 1; padding: 0.75rem; border: none; border-radius: 8px;
+            font-weight: 600; cursor: pointer; font-size: 0.95rem; font-family: inherit;
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+        .btn-secondary { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); }
+        .btn-secondary:hover { background: var(--panel-bg); }
+        .btn-danger { background: #fee2e2; color: #ef4444; max-width: 100px; }
+        .btn-danger:hover { background: #fecaca; }
+        [data-theme="dark"] .btn-danger { background: #451a1a; color: #fca5a5; }
+        [data-theme="dark"] .btn-danger:hover { background: #5c2222; }
+
+        /* Modal */
+        .modal {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+            background-color: var(--modal-bg); align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal img { max-width: 90%; max-height: 90vh; border-radius: 4px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+        .modal-close { position: absolute; top: 20px; right: 30px; color: var(--text-main); font-size: 40px; font-weight: bold; cursor: pointer; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <div class="header-row">
+            <div>
+                <h1>Manga Extractor <span class="badge">PWA</span></h1>
+                <p class="subtitle">Extract high-quality images from MHTML files securely.</p>
+            </div>
+            <div class="header-actions">
+                <button id="install-btn" class="icon-btn install-btn hidden" title="Add to Home Screen">
+                    Install App
+                </button>
+                <button id="theme-toggle" class="icon-btn" title="Toggle Theme">
+                    <svg id="moon-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    <svg id="sun-icon" class="hidden" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="controls-grid">
+            <div class="control-panel">
+                <span class="control-label">Min File Size</span>
+                <div class="range-row">
+                    <input type="range" id="size-filter" min="0" max="200" value="40" step="5">
+                    <span class="range-value"><span id="size-val">40</span><span style="font-size: 0.7rem; opacity: 0.7;">KB</span></span>
+                </div>
+                <p style="font-size: 0.75rem; color: var(--text-sub); margin-top: 8px; margin-bottom: 0;">
+                    Filters out ads and thumbnails.
+                </p>
+            </div>
+
+            <div class="control-panel">
+                <span class="control-label">Settings</span>
+                
+                <div class="toggle-row">
+                    <span class="toggle-text">Reverse Order</span>
+                    <label class="switch">
+                        <input type="checkbox" id="reverse-sort">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-text">Exclude GIFs</span>
+                    <label class="switch">
+                        <input type="checkbox" id="no-gifs">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-text">Save as .CBZ</span>
+                    <label class="switch">
+                        <input type="checkbox" id="cbz-ext" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" accept=".mhtml,.mht" multiple style="display:none">
+            <div class="icon-box">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+            </div>
+            <div class="drop-title">Click to upload or drag MHTML</div>
+            <div class="drop-sub">Batch processing supported</div>
+        </div>
+
+        <div id="progress-area" class="progress-container">
+            <div class="progress-info">
+                <span id="status-text">Processing...</span>
+                <span id="percent-text">0%</span>
+            </div>
+            <div class="progress-track">
+                <div id="progress-bar" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div id="gallery-area" class="gallery-area">
+            <div class="gallery-header">Preview (First 20 Pages)</div>
+            <div id="gallery-grid" class="gallery-grid"></div>
+        </div>
+
+        <div id="action-area" class="btn-group">
+            <button id="reset-btn" class="btn btn-danger">Reset</button>
+            <button id="download-btn" class="btn btn-primary">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Download Archive
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="img-modal" class="modal">
+    <span class="modal-close">&times;</span>
+    <img id="modal-img" src="">
+</div>
+
+<script id="worker-code" type="javascript/worker">
+    self.onmessage = async function(e) {
+        const { files, config } = e.data;
+        const processedImages = [];
+        const totalFiles = files.length;
+        let baseName = "Manga_Export";
+
+        try {
+            if (totalFiles > 0) {
+                baseName = files[0].name.replace(/\.(mhtml|mht)$/i, "").trim();
+            }
+
+            for (let i = 0; i < totalFiles; i++) {
+                const file = files[i];
+                const safeName = file.name.replace(/\.(mhtml|mht)$/i, "").trim();
+                
+                self.postMessage({ type: 'progress', text: `Scanning: ${safeName}`, percent: (i / totalFiles) * 70 });
+                
+                const content = await file.text();
+                const folderPrefix = totalFiles > 1 ? safeName + "/" : "";
+                
+                // Pass config to parser
+                let result = parseMHTML(content, config);
+                
+                const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
+                result.images.sort((a, b) => collator.compare(a.name, b.name));
+
+                if (config.reverse) result.images.reverse();
+
+                result.images.forEach((img, idx) => {
+                    const seqName = String(idx + 1).padStart(3, '0') + "." + img.ext;
+                    img.zipName = folderPrefix + seqName;
+                    processedImages.push(img);
+                });
+            }
+
+            self.postMessage({ type: 'progress', text: `Compressing...`, percent: 85 });
+
+            if (processedImages.length === 0) {
+                self.postMessage({ type: 'error', message: "No images found (or all were filtered out)." });
+                return;
+            }
+
+            const zipBlob = createZip(processedImages);
+            
+            const preview = processedImages.slice(0, 20).map(img => ({
+                blob: new Blob([img.data], {type: "image/"+(img.ext === 'jpg' ? 'jpeg' : img.ext)})
+            }));
+
+            self.postMessage({ 
+                type: 'done', 
+                zipBlob: zipBlob, 
+                preview: preview, 
+                count: processedImages.length,
+                suggestedName: baseName
+            });
+
+        } catch (err) {
+            self.postMessage({ type: 'error', message: err.message });
+        }
+    };
+
+    function parseMHTML(content, config) {
+        let boundary = null;
+        const boundaryMatch = content.match(/boundary="?([^";\s]+)"?/i);
+        if (boundaryMatch) {
+            boundary = "--" + boundaryMatch[1];
+        } else {
+            const lines = content.split('\n');
+            for(let line of lines) {
+                if(line.startsWith('--') && line.length > 10 && !line.includes(' ')) {
+                    boundary = line.trim();
+                    break;
+                }
+            }
+        }
+
+        if (!boundary) return { images: [], totalFound: 0 };
+
+        const parts = content.split(boundary);
+        const images = [];
+        const minSizeBytes = config.minSizeKB * 1024;
+        let totalFound = 0;
+
+        parts.forEach(part => {
+            const headerEndIndex = part.search(/\r?\n\r?\n/);
+            
+            if (headerEndIndex !== -1) {
+                const headers = part.substring(0, headerEndIndex);
+                const body = part.substring(headerEndIndex); 
+                
+                const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp|bmp)/i);
+                const encMatch = headers.match(/Content-Transfer-Encoding:\s*base64/i);
+                
+                if (typeMatch && encMatch) {
+                    
+                    const imgType = typeMatch[1].toLowerCase();
+                    
+                    // GIF FILTER CHECK
+                    if (config.excludeGifs && imgType === 'gif') {
+                        return; // Skip this iteration
+                    }
+
+                    totalFound++;
+                    const ext = imgType === 'jpeg' ? 'jpg' : imgType;
+                    let loc = (headers.match(/Content-Location:\s*(.*)/i) || [])[1] || `img_${Math.random()}`;
+                    try { loc = decodeURIComponent(loc.trim()); } catch(e){}
+                    const originalName = loc.split('/').pop().split('?')[0]; 
+                    
+                    const cleanBody = body.replace(/\s/g, '');
+                    
+                    if (cleanBody) {
+                        try {
+                            if (cleanBody.length < (minSizeBytes * 1.3)) return;
+
+                            const binaryString = atob(cleanBody);
+                            if (
         .hidden { display: none !important; }
     </style>
 </head>
