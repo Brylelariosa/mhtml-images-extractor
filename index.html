@@ -143,7 +143,7 @@
             <span style="font-size: 2rem;">📂</span>
             <div class="drop-title"><b>Click to upload</b> MHTML or Images</div>
             <div style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
-                Drag & Drop supported
+                Drag & Drop supported (Unlimited Files)
             </div>
         </div>
 
@@ -176,26 +176,25 @@
 <script id="worker-code" type="javascript/worker">
     self.onmessage = function(e) {
         const { type } = e.data;
-        if (type === 'extract') extractMhtml(e.data);
+        if (type === 'extractOne') extractSingleMhtml(e.data);
         if (type === 'zip') createZip(e.data);
     };
 
-    function extractMhtml({ contents, filenames, config }) {
-        const resultGroups = [];
+    function extractSingleMhtml({ content, filename, config }) {
+        // Optimized for single file processing
+        const extracted = [];
+        
+        // Find boundary
+        let boundary = null;
+        const bMatch = content.match(/boundary="?([^";\s]+)"?/i);
+        if (bMatch) boundary = bMatch[1];
+        else {
+            const match = content.match(/^--[a-fA-F0-9\-]+(\r?\n|$)/m);
+            if(match) boundary = match[0].trim().replace(/^--/, '');
+        }
 
-        function parseMHTML(content, fileName) {
-            // Find boundary
-            let boundary = null;
-            const bMatch = content.match(/boundary="?([^";\s]+)"?/i);
-            if (bMatch) boundary = bMatch[1];
-            else {
-                const match = content.match(/^--[a-fA-F0-9\-]+(\r?\n|$)/m);
-                if(match) boundary = match[0].trim().replace(/^--/, '');
-            }
-            if (!boundary) return [];
-
+        if (boundary) {
             const parts = content.split("--" + boundary);
-            const extracted = [];
             const minSizeBytes = config.minSizeKB * 1024;
 
             parts.forEach((part, idx) => {
@@ -208,17 +207,17 @@
                 }
 
                 const headers = part.substring(0, bodyStart);
-                const body = part.substring(bodyStart + sepLen);
+                // Basic cleanup of body immediately to save temp memory
+                const cleanBody = part.substring(bodyStart + sepLen).replace(/[\r\n\t\s]+/g, "");
+                
+                // Fast fail on size before regex/allocating
+                if (cleanBody.length * 0.75 < minSizeBytes) return;
+
                 const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
                 
                 if (typeMatch) {
                     const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
                     if (config.excludeGifs && ext === 'gif') return;
-                    
-                    // Cleanup and Base64 check
-                    const cleanBody = body.replace(/[\r\n\t\s]+/g, "");
-                    // rough size check before decoding
-                    if (cleanBody.length * 0.75 < minSizeBytes) return;
 
                     try {
                         const bin = atob(cleanBody);
@@ -232,28 +231,19 @@
                     } catch (err) {}
                 }
             });
-            return extracted;
         }
+        
+        // Sort and Finish
+        extracted.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+        if(config.reverse) extracted.reverse();
 
-        try {
-            for (let i = 0; i < contents.length; i++) {
-                self.postMessage({ type: 'status', text: `Scanning ${filenames[i]}...`, percent: (i/contents.length)*40 });
-                const imgs = parseMHTML(contents[i], filenames[i]);
-                
-                imgs.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
-                if(config.reverse) imgs.reverse();
-
-                if(imgs.length > 0) {
-                    resultGroups.push({ groupName: filenames[i].replace(/\.mhtml?/i, ""), images: imgs });
-                }
-            }
-            self.postMessage({ type: 'extractDone', groups: resultGroups });
-        } catch (e) {
-            self.postMessage({ type: 'error', msg: e.message });
-        }
+        const group = extracted.length > 0 ? { groupName: filename.replace(/\.mhtml?/i, ""), images: extracted } : null;
+        
+        // Send back immediately and release memory
+        self.postMessage({ type: 'extractDone', group: group });
     }
 
-    // ZIP LOGIC: Creates FOLDERS instead of nested Zips
+    // ZIP LOGIC: Unchanged but still robust
     function createZip({ groups }) {
         const crcTable = new Int32Array(256);
         for(let i=0; i<256; i++){let c=i; for(let k=0; k<8; k++) c=((c&1)?(0xEDB88320^(c>>>1)):(c>>>1)); crcTable[i]=c;}
@@ -268,16 +258,13 @@
         let processed = 0;
 
         for(const group of groups) {
-            // Clean folder name
             const folderName = group.groupName.trim() + "/";
-            
             for(const img of group.images) {
                 processed++;
                 if(processed % 20 === 0) {
                      self.postMessage({ type: 'status', text: "Zipping...", percent: 50 + ((processed/totalFiles)*50) });
                 }
 
-                // Path = Folder/Image.jpg
                 const path = folderName + img.name;
                 const n = enc.encode(path); 
                 const cr = crc32(img.data);
@@ -314,8 +301,13 @@
     // --- MAIN THREAD ---
     let currentMode = 'extract';
     let rawGroups = []; 
-    let activeUrls = []; // Track URLs to revoke later
+    let activeUrls = []; 
     let worker = null;
+    
+    // Process Queue State
+    let processingQueue = [];
+    let queueIndex = 0;
+    let looseImagesBuffer = [];
 
     const els = {
         drop: document.getElementById('drop-zone'),
@@ -338,12 +330,10 @@
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
     function init() {
-        // Init Worker
         const blob = new Blob([document.getElementById('worker-code').textContent], {type: 'text/javascript'});
         worker = new Worker(URL.createObjectURL(blob));
         worker.onmessage = handleWorkerMsg;
         
-        // Restore Settings
         const saved = JSON.parse(localStorage.getItem('manga-tool-cfg') || '{}');
         if(saved.minSize) document.getElementById('size-filter').value = saved.minSize;
         if(saved.noGifs !== undefined) document.getElementById('no-gifs').checked = saved.noGifs;
@@ -372,53 +362,88 @@
         els.drop.style.display = 'none';
         els.progress.style.display = 'block';
         
-        const mhtmlContents = [];
-        const mhtmlNames = [];
-        const looseImages = [];
+        // Reset Queue
+        processingQueue = Array.from(files); // Convert FileList to Array
+        queueIndex = 0;
+        looseImagesBuffer = [];
         
-        // Read files
-        for(let i=0; i<files.length; i++) {
-            els.status.innerText = `Reading ${files[i].name}...`;
-            try {
-                const name = files[i].name.toLowerCase();
-                if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
-                    const text = await files[i].text();
-                    mhtmlContents.push(text);
-                    mhtmlNames.push(files[i].name);
-                } 
-                else if (name.match(/\.(jpg|jpeg|png|webp)$/)) {
-                    const buf = await files[i].arrayBuffer();
-                    looseImages.push({ name: files[i].name, data: new Uint8Array(buf), ext: name.split('.').pop() });
-                }
-            } catch (err) {}
-        }
+        // Start Processing Loop
+        processNextFile();
+    }
 
-        if (looseImages.length > 0) {
-            rawGroups.push({ groupName: "Loose Images", images: looseImages });
-        }
-
-        if (mhtmlContents.length > 0) {
-            const config = {
-                minSizeKB: parseInt(document.getElementById('size-filter').value),
-                reverse: document.getElementById('reverse-sort').checked,
-                excludeGifs: document.getElementById('no-gifs').checked
-            };
-            worker.postMessage({ type: 'extract', contents: mhtmlContents, filenames: mhtmlNames, config });
-        } else if (looseImages.length > 0) {
+    async function processNextFile() {
+        // Check if done
+        if (queueIndex >= processingQueue.length) {
+            // Handle any loose images found during the process
+            if (looseImagesBuffer.length > 0) {
+                rawGroups.push({ groupName: "Loose Images", images: looseImagesBuffer });
+            }
             finishProcessing();
+            return;
+        }
+
+        const file = processingQueue[queueIndex];
+        const pct = Math.round((queueIndex / processingQueue.length) * 100);
+        els.status.innerText = `Processing ${queueIndex + 1}/${processingQueue.length}: ${file.name}`;
+        els.bar.style.width = pct + "%";
+        els.percent.innerText = pct + "%";
+
+        const name = file.name.toLowerCase();
+        
+        // BRANCH: MHTML (Send to Worker)
+        if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
+            try {
+                // Read ONE file into memory
+                const text = await file.text();
+                
+                const config = {
+                    minSizeKB: parseInt(document.getElementById('size-filter').value),
+                    reverse: document.getElementById('reverse-sort').checked,
+                    excludeGifs: document.getElementById('no-gifs').checked
+                };
+                
+                // Send ONE file to worker and wait for callback
+                worker.postMessage({ type: 'extractOne', content: text, filename: file.name, config });
+                // Note: The 'text' string is released from this scope when function exits,
+                // effectively clearing it from memory once the worker is done.
+            } catch (err) {
+                console.error("Error reading file:", err);
+                queueIndex++;
+                processNextFile(); // Skip error
+            }
+        } 
+        // BRANCH: Images (Keep in buffer)
+        else if (name.match(/\.(jpg|jpeg|png|webp)$/)) {
+            try {
+                const buf = await file.arrayBuffer();
+                looseImagesBuffer.push({ name: file.name, data: new Uint8Array(buf), ext: name.split('.').pop() });
+            } catch (e) {}
+            
+            queueIndex++;
+            processNextFile(); // Immediately go to next
+        }
+        else {
+            // Unsupported file
+            queueIndex++;
+            processNextFile();
         }
     }
 
     function handleWorkerMsg(e) {
-        const { type, text, percent, groups, blob, filename } = e.data;
+        const { type, text, percent, group, blob, filename } = e.data;
+        
         if(type === 'status') {
             els.status.innerText = text;
             els.bar.style.width = percent + "%";
             els.percent.innerText = Math.round(percent) + "%";
         }
         else if (type === 'extractDone') {
-            rawGroups = [...rawGroups, ...groups];
-            finishProcessing();
+            // Worker finished ONE file
+            if (group) {
+                rawGroups.push(group);
+            }
+            queueIndex++;
+            processNextFile(); // Trigger the next one
         }
         else if (type === 'zipDone') {
             downloadBlob(blob, filename);
@@ -437,22 +462,19 @@
         clearAndRender();
     }
 
-    // --- RENDER LOGIC (LAZY) ---
+    // --- RENDER LOGIC ---
     function clearAndRender() {
         els.list.innerHTML = '';
         rawGroups.forEach((group, idx) => {
             const item = document.createElement('div');
             item.className = 'chapter-item';
             
-            // Header
             const head = document.createElement('div');
             head.className = 'chapter-head';
             head.innerHTML = `<span>${group.groupName}</span> <span style="font-size:0.8em; color:var(--text-sub)">${group.images.length} images</span>`;
             
-            // Body (Hidden initially)
             const body = document.createElement('div');
             body.className = 'chapter-body';
-            body.id = `chap-body-${idx}`;
             
             head.onclick = () => toggleChapter(idx, body, group);
             
@@ -467,26 +489,23 @@
         
         if (isExpanded) {
             container.classList.remove('expanded');
-            container.innerHTML = ''; // Clear DOM to save memory
+            container.innerHTML = ''; 
         } else {
             container.classList.add('expanded');
             container.innerHTML = '<div style="padding:10px; text-align:center">Generating previews...</div>';
             
-            // Slight delay to allow UI to update
             setTimeout(async () => {
                 const grid = document.createElement('div');
                 grid.className = currentMode === 'extract' ? 'gallery-grid' : 'gallery-grid merge-mode';
                 
-                // Show ALL images (scrollable inside the box) but generated on demand
                 if (currentMode === 'extract') {
                     for(let img of group.images) {
                         const blob = new Blob([img.data], {type: 'image/'+img.ext});
                         const url = URL.createObjectURL(blob);
-                        activeUrls.push(url); // Track for cleanup on reset
+                        activeUrls.push(url);
                         addToGrid(grid, url, false);
                     }
                 } else {
-                    // Merge logic
                     const ctx = els.canvas.getContext('2d');
                     const isRTL = document.getElementById('rtl-mode').checked;
                     for(let i=0; i<group.images.length; i+=2) {
@@ -497,7 +516,6 @@
                         if(!img2) {
                             blob = new Blob([img1.data]);
                         } else {
-                            // Merge
                             const b1 = await createImageBitmap(new Blob([img1.data]));
                             const b2 = await createImageBitmap(new Blob([img2.data]));
                             els.canvas.width = b1.width + b2.width;
@@ -541,7 +559,6 @@
             els.settingsExtract.classList.add('hidden');
             els.settingsMerge.classList.remove('hidden');
         }
-        // Collapses all open chapters to force re-render with new mode
         clearAndRender();
     };
 
@@ -564,7 +581,7 @@
     };
 
     document.getElementById('reset-btn').onclick = () => {
-        activeUrls.forEach(u => URL.revokeObjectURL(u)); // Cleanup memory
+        activeUrls.forEach(u => URL.revokeObjectURL(u));
         location.reload();
     };
 
