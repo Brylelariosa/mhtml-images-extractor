@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="Manga Extractor & Merger Tool">
+    <title>Manga Tool Ultimate</title>
+    
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        :root { --primary: #4f46e5; --bg-color: #f8fafc; --card-bg: #ffffff; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0; --panel-bg: #f1f5f9; --drop-bg: #f8fafc; --drop-border: #cbd5e1; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); --modal-bg: rgba(255, 255, 255, 0.98); }
+        [data-theme="dark"] { --primary: #6366f1; --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-sub: #94a3b8; --border: #334155; --panel-bg: #0f172a; --drop-bg: #1e293b; --drop-border: #475569; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); --modal-bg: rgba(15, 23, 42, 0.98); }
+        
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: start; min-height: 100vh; margin: 0; padding: 20px; transition: 0.3s; }
+        
+        .container { width: 100%; max-width: 900px; margin-bottom: 50px; }
+        .card { background: var(--card-bg); border-radius: 16px; box-shadow: var(--shadow); padding: 2rem; border: 1px solid var(--border); }
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
+        .count-badge { font-size: 0.8rem; background: var(--primary); color: white; padding: 4px 10px; border-radius: 20px; margin-left: 10px; opacity: 0; transition: 0.3s; }
+        
+        .mode-tabs { display: flex; background: var(--panel-bg); padding: 4px; border-radius: 12px; gap: 4px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+        .mode-tab { flex: 1; border: none; background: transparent; padding: 12px; font-weight: 600; color: var(--text-sub); border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        .mode-tab.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+        .controls-wrapper { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .control-panel { background: var(--panel-bg); padding: 1rem; border-radius: 12px; border: 1px solid var(--border); }
+        .control-label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-sub); margin-bottom: 0.8rem; }
+        
+        .range-row { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 600; }
+        input[type=range] { flex: 1; accent-color: var(--primary); }
+        
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 500; }
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--drop-border); transition: .3s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(16px); }
+
+        .drop-zone { border: 2px dashed var(--drop-border); border-radius: 12px; padding: 3rem 2rem; text-align: center; cursor: pointer; background: var(--drop-bg); transition: 0.2s; }
+        .drop-zone:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); transform: scale(0.99); }
+        
+        .progress-container { margin-top: 2rem; display: none; }
+        .progress-info { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .progress-track { width: 100%; height: 6px; background: var(--border); border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.1s linear; }
+
+        /* Gallery Updates for Chapter Separation */
+        .gallery-area { margin-top: 2rem; display: none; }
+        .chapter-block { margin-bottom: 2rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        .chapter-header { background: var(--panel-bg); padding: 10px 15px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .chapter-header:hover { background: var(--border); }
+        .chapter-content { padding: 10px; background: var(--card-bg); }
+        
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+        .gallery-grid.merge-mode { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+        .gallery-item { position: relative; background: var(--panel-bg); border-radius: 6px; overflow: hidden; cursor: zoom-in; aspect-ratio: 2/3; border: 1px solid var(--border); }
+        .gallery-item.merge-item { aspect-ratio: 4/3; }
+        .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: 0.3s; }
+        .gallery-item:hover img { transform: scale(1.05); }
+
+        .btn-group { display: flex; gap: 1rem; margin-top: 2rem; display: none; }
+        .btn { flex: 1; padding: 1rem; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; background: var(--primary); color: white; }
+        .btn-danger { background: #ef4444; max-width: 120px; }
+
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--modal-bg); align-items: center; justify-content: center; backdrop-filter: blur(5px); flex-direction: column; }
+        .modal-content { position: relative; display: flex; align-items: center; justify-content: center; max-width: 100%; max-height: 100%; }
+        .modal img { max-width: 95vw; max-height: 85vh; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
+        .close-modal { position: absolute; top: 20px; right: 20px; font-size: 40px; cursor: pointer; color: var(--text-main); z-index: 2002; }
+        .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.1); border: none; color: var(--text-main); font-size: 2rem; padding: 20px 15px; cursor: pointer; border-radius: 8px; transition: 0.2s; z-index: 2001; }
+        .nav-btn:hover { background: var(--primary); color: white; }
+        .prev-btn { left: 20px; }
+        .next-btn { right: 20px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <div class="header-row">
+            <div style="display:flex; align-items:center">
+                <h1>Manga Tool</h1>
+                <span id="img-count-badge" class="count-badge">0 Files</span>
+            </div>
+            <button id="theme-toggle" class="mode-tab" style="flex:0; padding: 8px 12px;">🌙</button>
+        </div>
+
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tab-extract" onclick="setMode('extract')">Extract</button>
+            <button class="mode-tab" id="tab-merge" onclick="setMode('merge')">Merger</button>
+        </div>
+
+        <div class="controls-wrapper">
+            <div id="settings-extract" class="control-panel">
+                <span class="control-label">Extraction Filters</span>
+                <div class="range-row">
+                    <span>Min Size:</span>
+                    <input type="range" id="size-filter" min="0" max="200" value="40" step="5">
+                    <span id="size-val">40 KB</span>
+                </div>
+                <div class="toggle-row" style="margin-top:10px">
+                    <span>Exclude GIFs</span>
+                    <label class="switch"><input type="checkbox" id="no-gifs" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row" style="margin-top:10px; border-top: 1px solid var(--border); padding-top: 10px;">
+                    <span>Reverse Order</span>
+                    <label class="switch"><input type="checkbox" id="reverse-sort"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div id="settings-merge" class="control-panel hidden">
+                <span class="control-label">Merger Settings</span>
+                <div class="toggle-row">
+                    <span>Manga Direction (RTL)</span>
+                    <label class="switch"><input type="checkbox" id="rtl-mode" onchange="renderCurrentMode()"><span class="slider"></span></label>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-sub); margin-top:5px">
+                    Joins two pages into one image. Useful for spreads.
+                </div>
+            </div>
+        </div>
+
+        <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" accept=".mhtml,.mht,.jpg,.jpeg,.png,.webp" multiple style="display:none">
+            <span style="font-size: 2rem;">📂</span>
+            <div class="drop-title"><b>Click to upload</b> MHTML or Images</div>
+            <div style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
+                Accepts: .mhtml, .jpg, .png
+            </div>
+        </div>
+
+        <div id="progress-area" class="progress-container">
+            <div class="progress-info">
+                <span id="status-text">Processing...</span>
+                <span id="percent-text">0%</span>
+            </div>
+            <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
+        </div>
+
+        <div id="gallery-area" class="gallery-area">
+            </div>
+
+        <div id="action-area" class="btn-group">
+            <button id="reset-btn" class="btn btn-danger">Reset</button>
+            <button id="download-btn" class="btn">Download All</button>
+        </div>
+    </div>
+</div>
+
+<div id="img-modal" class="modal">
+    <div class="close-modal" onclick="closeModal()">&times;</div>
+    <button class="nav-btn prev-btn" onclick="changeSlide(-1)">❮</button>
+    <div class="modal-content">
+        <img id="modal-img" src="">
+    </div>
+    <button class="nav-btn next-btn" onclick="changeSlide(1)">❯</button>
+</div>
+
+<canvas id="merge-canvas" style="display:none;"></canvas>
+
+<script id="worker-code" type="javascript/worker">
+    self.onmessage = function(e) {
+        const { contents, filenames, config } = e.data;
+        const resultGroups = [];
+
+        function parseMHTML(content, fileName) {
+            let boundary = null;
+            const bMatch = content.match(/boundary="?([^";\s]+)"?/i);
+            if (bMatch) boundary = bMatch[1];
+            else {
+                const match = content.match(/^--[a-fA-F0-9\-]+(\r?\n|$)/m);
+                if(match) boundary = match[0].trim().replace(/^--/, '');
+            }
+            if (!boundary) return [];
+
+            const parts = content.split("--" + boundary);
+            const extracted = [];
+            const minSizeBytes = config.minSizeKB * 1024;
+
+            parts.forEach((part, idx) => {
+                const sep = part.indexOf("\r\n\r\n");
+                let bodyStart = sep, sepLen = 4;
+                if(sep === -1) {
+                    const sep2 = part.indexOf("\n\n");
+                    if(sep2 !== -1) { bodyStart = sep2; sepLen = 2; } else return;
+                }
+
+                const headers = part.substring(0, bodyStart);
+                const body = part.substring(bodyStart + sepLen);
+                const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
+                const encMatch = headers.match(/Content-Transfer-Encoding:\s*base64/i);
+
+                if (typeMatch && encMatch) {
+                    const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
+                    if (config.excludeGifs && ext === 'gif') return;
+
+                    const cleanBody = body.replace(/[\r\n\t\s]+/g, "");
+                    if (cleanBody.length * 0.75 < minSizeBytes) return;
+
+                    try {
+                        const bin = atob(cleanBody);
+                        if (bin.length >= minSizeBytes) {
+                            const bytes = new Uint8Array(bin.length);
+                            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                            const name = `img_${String(idx).padStart(4,'0')}.${ext}`;
+                            extracted.push({ name, data: bytes, ext });
+                        }
+                    } catch (err) {}
+                }
+            });
+            return extracted;
+        }
+
+        try {
+            for (let i = 0; i < contents.length; i++) {
+                self.postMessage({ type: 'status', text: `Scanning ${filenames[i]}...`, percent: (i/contents.length)*50 });
+                const imgs = parseMHTML(contents[i], filenames[i]);
+                
+                // Sort by name inside the chapter
+                imgs.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+                if(config.reverse) imgs.reverse();
+
+                if(imgs.length > 0) {
+                    resultGroups.push({
+                        groupName: filenames[i],
+                        images: imgs
+                    });
+                }
+            }
+            self.postMessage({ type: 'done', groups: resultGroups });
+        } catch (e) {
+            self.postMessage({ type: 'error', msg: e.message });
+        }
+    };
+</script>
+
+<script>
+    // --- STATE ---
+    let currentMode = 'extract';
+    
+    // NEW STRUCTURE: Array of { groupName: "Chapter 1", images: [ {name, data, ext} ] }
+    let rawGroups = []; 
+    // FLATTENED LIST for Modal Navigation: [ { url, groupIndex, imgIndex } ]
+    let processedFlatList = []; 
+
+    let worker = null;
+    let currentModalIndex = -1;
+
+    const els = {
+        drop: document.getElementById('drop-zone'),
+        input: document.getElementById('file-input'),
+        progress: document.getElementById('progress-area'),
+        bar: document.getElementById('progress-bar'),
+        status: document.getElementById('status-text'),
+        percent: document.getElementById('percent-text'),
+        gallery: document.getElementById('gallery-area'),
+        actions: document.getElementById('action-area'),
+        countBadge: document.getElementById('img-count-badge'),
+        canvas: document.getElementById('merge-canvas'),
+        settingsExtract: document.getElementById('settings-extract'),
+        settingsMerge: document.getElementById('settings-merge'),
+        modal: document.getElementById('img-modal'),
+        modalImg: document.getElementById('modal-img')
+    };
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+
+    function init() {
+        const blob = new Blob([document.getElementById('worker-code').textContent], {type: 'text/javascript'});
+        worker = new Worker(URL.createObjectURL(blob));
+        worker.onmessage = handleWorkerMsg;
+        
+        if(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+
+        els.modal.addEventListener('click', (e) => {
+            if(e.target === els.modal || e.target.classList.contains('modal-content')) closeModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if(els.modal.style.display === 'flex') {
+                if(e.key === 'ArrowRight') changeSlide(1);
+                if(e.key === 'ArrowLeft') changeSlide(-1);
+                if(e.key === 'Escape') closeModal();
+            }
+        });
+    }
+
+    // --- FILE HANDLING ---
+    els.drop.onclick = () => els.input.click();
+    els.drop.ondragover = (e) => { e.preventDefault(); els.drop.classList.add('drag-active'); };
+    els.drop.ondragleave = () => els.drop.classList.remove('drag-active');
+    els.drop.ondrop = (e) => {
+        e.preventDefault();
+        els.drop.classList.remove('drag-active');
+        if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    };
+    els.input.onchange = () => { if(els.input.files.length) handleFiles(els.input.files); };
+
+    async function handleFiles(files) {
+        els.drop.style.display = 'none';
+        els.progress.style.display = 'block';
+        
+        const mhtmlContents = [];
+        const mhtmlNames = [];
+        const looseImages = [];
+        
+        for(let i=0; i<files.length; i++) {
+            updateProgress(`Reading ${files[i].name}...`, (i/files.length)*10);
+            try {
+                const name = files[i].name.toLowerCase();
+                if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
+                    const text = await files[i].text();
+                    mhtmlContents.push(text);
+                    mhtmlNames.push(files[i].name);
+                } 
+                else if (name.match(/\.(jpg|jpeg|png|webp)$/)) {
+                    const buf = await files[i].arrayBuffer();
+                    const u8 = new Uint8Array(buf);
+                    const ext = name.split('.').pop();
+                    looseImages.push({ name: files[i].name, data: u8, ext: ext });
+                }
+            } catch (err) { console.warn("Skip", files[i].name); }
+        }
+
+        if (looseImages.length > 0) {
+            looseImages.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+            // Add loose images as a group named "Loose Images"
+            rawGroups.push({ groupName: "Loose Images", images: looseImages });
+        }
+
+        if (mhtmlContents.length > 0) {
+            const config = {
+                minSizeKB: parseInt(document.getElementById('size-filter').value),
+                reverse: document.getElementById('reverse-sort').checked,
+                excludeGifs: document.getElementById('no-gifs').checked
+            };
+            updateProgress("Extracting MHTML...", 20);
+            worker.postMessage({ contents: mhtmlContents, filenames: mhtmlNames, config });
+        } else if (looseImages.length > 0) {
+            finishProcessing();
+        } else {
+            alert("No valid files read.");
+            location.reload();
+        }
+    }
+
+    async function handleWorkerMsg(e) {
+        const { type, text, percent, groups } = e.data;
+        if(type === 'status') updateProgress(text, percent);
+        else if (type === 'done') {
+            rawGroups = [...rawGroups, ...groups];
+            finishProcessing();
+        }
+    }
+
+    function finishProcessing() {
+        els.countBadge.innerText = `${rawGroups.length} Chapter(s)`;
+        els.countBadge.style.opacity = '1';
+        renderCurrentMode();
+    }
+
+    // --- MODE & UI ---
+    window.setMode = function(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+        document.getElementById(`tab-${mode}`).classList.add('active');
+        
+        if(mode === 'extract') {
+            els.settingsExtract.classList.remove('hidden');
+            els.settingsMerge.classList.add('hidden');
+        } else {
+            els.settingsExtract.classList.add('hidden');
+            els.settingsMerge.classList.remove('hidden');
+        }
+
+        if(rawGroups.length > 0) renderCurrentMode();
+    };
+
+    async function renderCurrentMode() {
+        els.gallery.style.display = 'block';
+        els.actions.style.display = 'flex';
+        els.gallery.innerHTML = '';
+        processedFlatList = [];
+
+        updateProgress("Rendering...", 80);
+
+        for (let gIndex = 0; gIndex < rawGroups.length; gIndex++) {
+            const group = rawGroups[gIndex];
+            
+            // Create Section UI
+            const section = document.createElement('details');
+            section.open = true;
+            section.className = 'chapter-block';
+            
+            const summary = document.createElement('summary');
+            summary.className = 'chapter-header';
+            summary.innerText = `${group.groupName} (${group.images.length} images)`;
+            section.appendChild(summary);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'chapter-content';
+            
+            const grid = document.createElement('div');
+            grid.className = currentMode === 'extract' ? 'gallery-grid' : 'gallery-grid merge-mode';
+            
+            contentDiv.appendChild(grid);
+            section.appendChild(contentDiv);
+            els.gallery.appendChild(section);
+
+            // Process Images for this Group
+            if (currentMode === 'extract') {
+                await processGroupExtract(group, grid);
+            } else {
+                await processGroupMerge(group, grid);
+            }
+        }
+        updateProgress("Done!", 100);
+    }
+
+    async function processGroupExtract(group, grid) {
+        for (let i = 0; i < group.images.length; i++) {
+            const img = group.images[i];
+            const blob = new Blob([img.data], {type: 'image/'+img.ext});
+            const url = URL.createObjectURL(blob);
+            
+            // For modal nav
+            const listIdx = processedFlatList.length;
+            processedFlatList.push({ url, name: img.name });
+
+            addToGrid(grid, url, false, i+1, listIdx);
+        }
+    }
+
+    async function processGroupMerge(group, grid) {
+        const ctx = els.canvas.getContext('2d');
+        const isRTL = document.getElementById('rtl-mode').checked;
+        let mergedCount = 1;
+
+        for (let i = 0; i < group.images.length; i += 2) {
+            const img1 = group.images[i];
+            const img2 = group.images[i+1];
+
+            if(!img2) {
+                const url = URL.createObjectURL(new Blob([img1.data]));
+                const listIdx = processedFlatList.length;
+                processedFlatList.push({ url, name: `p${mergedCount}.jpg` });
+                addToGrid(grid, url, true, mergedCount, listIdx);
+                mergedCount++;
+                continue;
+            }
+
+            try {
+                const bmp1 = await createImageBitmap(new Blob([img1.data]));
+                const bmp2 = await createImageBitmap(new Blob([img2.data]));
+
+                const h = Math.max(bmp1.height, bmp2.height);
+                const w = bmp1.width + bmp2.width;
+                els.canvas.width = w; els.canvas.height = h;
+
+                ctx.fillStyle = "#fff"; ctx.fillRect(0,0,w,h);
+                if(isRTL) {
+                    ctx.drawImage(bmp2, 0, 0); 
+                    ctx.drawImage(bmp1, bmp2.width, 0); 
+                } else {
+                    ctx.drawImage(bmp1, 0, 0);
+                    ctx.drawImage(bmp2, bmp1.width, 0);
+                }
+
+                const blob = await new Promise(r => els.canvas.toBlob(r, 'image/jpeg', 0.90));
+                const url = URL.createObjectURL(blob);
+                
+                const listIdx = processedFlatList.length;
+                processedFlatList.push({ url, name: `p${mergedCount}.jpg` });
+                addToGrid(grid, url, true, mergedCount, listIdx);
+                mergedCount++;
+            } catch(e) { console.error(e); }
+        }
+    }
+
+    function addToGrid(container, url, isWide, label, flatIndex) {
+        const div = document.createElement('div');
+        div.className = `gallery-item ${isWide ? 'merge-item' : ''}`;
+        div.innerHTML = `<img src="${url}" loading="lazy"><div style="position:absolute;bottom:0;right:0;background:rgba(0,0,0,0.5);color:white;font-size:10px;padding:2px 5px;">${label}</div>`;
+        div.onclick = () => openModal(flatIndex);
+        container.appendChild(div);
+    }
+
+    // --- MODAL ---
+    function openModal(index) {
+        if(index < 0 || index >= processedFlatList.length) return;
+        currentModalIndex = index;
+        updateModalImage();
+        els.modal.style.display = 'flex';
+    }
+
+    function closeModal() { els.modal.style.display = 'none'; }
+
+    function changeSlide(dir) {
+        const newIndex = currentModalIndex + dir;
+        if(newIndex >= 0 && newIndex < processedFlatList.length) {
+            currentModalIndex = newIndex;
+            updateModalImage();
+        }
+    }
+
+    function updateModalImage() {
+        els.modalImg.src = processedFlatList[currentModalIndex].url;
+    }
+
+    function updateProgress(txt, pct) {
+        els.status.innerText = txt;
+        els.bar.style.width = pct + "%";
+        els.percent.innerText = Math.round(pct) + "%";
+    }
+
+    // --- ZIP LOGIC ---
+    // Helper to create a single Zip file blob
+    function buildZipBlob(files) {
+        const parts = [], cd = []; let offset = 0; const enc = new TextEncoder();
+        const crcTable = new Int32Array(256);
+        for(let i=0; i<256; i++){let c=i; for(let k=0; k<8; k++) c=((c&1)?(0xEDB88320^(c>>>1)):(c>>>1)); crcTable[i]=c;}
+        const crc32 = d => {let c=-1; for(let i=0;i<d.length;i++) c=(c>>>8)^crcTable[(c^d[i])&0xFF]; return (c^-1)>>>0;};
+
+        files.forEach(f => {
+            const n = enc.encode(f.name); const cr = crc32(f.data);
+            const h = new Uint8Array(30+n.length); const v=new DataView(h.buffer);
+            v.setUint32(0,0x04034b50,true); v.setUint16(4,10,true); v.setUint16(6,0,true); v.setUint16(8,0,true);
+            v.setUint32(14,cr,true); v.setUint32(18,f.data.length,true); v.setUint32(22,f.data.length,true);
+            v.setUint16(26,n.length,true); v.setUint16(28,0,true); h.set(n,30); parts.push(h); parts.push(f.data);
+            const c = new Uint8Array(46+n.length); const cv=new DataView(c.buffer);
+            cv.setUint32(0,0x02014b50,true); cv.setUint16(4,10,true); cv.setUint16(6,10,true);
+            cv.setUint16(8,0,true); cv.setUint16(10,0,true); cv.setUint32(16,cr,true);
+            cv.setUint32(20,f.data.length,true); cv.setUint32(24,f.data.length,true);
+            cv.setUint16(28,n.length,true); cv.setUint16(30,0,true); cv.setUint16(32,0,true);
+            cv.setUint32(42,offset,true); c.set(n,46); cd.push(c); offset += h.length + f.data.length;
+        });
+        const cdLen = cd.reduce((a,c)=>a+c.length,0);
+        const eocd = new Uint8Array(22); const ev=new DataView(eocd.buffer);
+        ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true);
+        ev.setUint16(10,files.length,true); ev.setUint32(12,cdLen,true); ev.setUint32(16,offset,true);
+        return new Blob([...parts, ...cd, eocd], {type: 'application/zip'});
+    }
+
+    async function generateAndDownload() {
+        if(!rawGroups.length) return;
+        updateProgress("Zipping...", 50);
+        
+        // If single chapter, just download one CBZ
+        if(rawGroups.length === 1) {
+            const blob = buildZipBlob(rawGroups[0].images);
+            saveBlob(blob, rawGroups[0].groupName.replace(/\.mhtml?/i, "") + ".cbz");
+        } 
+        // If multiple chapters, create CBZs then Zip them
+        else {
+            const cbzFiles = [];
+            for(let group of rawGroups) {
+                const blob = buildZipBlob(group.images);
+                const u8 = new Uint8Array(await blob.arrayBuffer());
+                cbzFiles.push({
+                    name: group.groupName.replace(/\.mhtml?/i, "") + ".cbz",
+                    data: u8
+                });
+            }
+            const masterZip = buildZipBlob(cbzFiles);
+            saveBlob(masterZip, "Manga_Batch.zip");
+        }
+        updateProgress("Done", 100);
+    }
+
+    function saveBlob(blob, filename) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+    }
+
+    document.getElementById('download-btn').onclick = generateAndDownload;
+    document.getElementById('reset-btn').onclick = () => location.reload();
+    document.getElementById('size-filter').oninput = (e) => document.getElementById('size-val').innerText = e.target.value + " KB";
+    document.getElementById('theme-toggle').onclick = () => {
+        const html = document.documentElement;
+        html.setAttribute('data-theme', html.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    };
+
+    init();
+</script>
+</body>
+</html>
