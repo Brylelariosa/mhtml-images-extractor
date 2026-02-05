@@ -7,87 +7,113 @@
     <title>Manga Tool Ultimate</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        :root { --primary: #4f46e5; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
-        [data-theme="dark"] { --primary: #6366f1; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; }
+        :root { --primary: #4f46e5; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; --panel: #f1f5f9; }
+        [data-theme="dark"] { --primary: #6366f1; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; --panel: #1e293b; }
         
-        body { margin:0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 80px; }
-        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        body { margin:0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 60px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 15px; }
+        
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .mode-selector { display: flex; background: var(--border); padding: 4px; border-radius: 8px; }
+        .mode-btn { border: none; background: transparent; padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--text); font-weight: 500; }
+        .mode-btn.active { background: var(--card); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         
         /* Drop Zone */
-        #drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: 0.2s; background: var(--card); }
+        #drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 30px; text-align: center; cursor: pointer; background: var(--card); margin-bottom: 20px; }
         #drop-zone:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
+
+        /* Settings Panel */
+        .settings-panel { background: var(--panel); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; display: none; }
+        .settings-panel.active { display: block; }
+        .setting-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.9em; }
         
-        /* Controls */
-        .controls { display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap; }
-        button { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
-        button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
-        
-        /* Toggles */
-        .toggle-row { display: flex; align-items: center; gap: 10px; font-size: 0.9em; margin-top: 10px; }
-        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        /* Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
         .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--primary); }
-        input:checked + .slider:before { transform: translateX(20px); }
+        input:checked + .slider:before { transform: translateX(16px); }
 
         /* Chapter List */
         .chapter { background: var(--card); margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
-        .chap-head { padding: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .chap-head { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; background: var(--card); }
         .chap-head:hover { background: rgba(0,0,0,0.02); }
-        .chap-actions { display: flex; gap: 10px; align-items: center; }
-        .icon-btn { cursor: pointer; padding: 4px; border-radius: 4px; font-size: 1.2em; }
-        .icon-btn:hover { background: rgba(0,0,0,0.1); }
-        
         .chap-content { display: none; padding: 15px; border-top: 1px solid var(--border); }
         .chap-content.open { display: block; }
-        
+
         /* Grid */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
-        .grid img { width: 100%; height: auto; border-radius: 4px; display: block; }
-        .grid .merged-spread { grid-column: span 2; } 
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+        .grid img { width: 100%; border-radius: 4px; display: block; }
         
-        #progress { display: none; margin-top: 10px; font-size: 0.9em; color: var(--primary); }
+        /* Buttons */
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn:disabled { opacity: 0.6; cursor: wait; }
+        .btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+        #progress { margin-top: 10px; color: var(--primary); font-weight: 500; display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h2>Manga Tool Ult.</h2>
-        <button id="theme-toggle" class="secondary">🌙</button>
+    <div class="header">
+        <h3>Manga Tool Ult.</h3>
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setMode('extract')" id="mode-extract">Extractor</button>
+            <button class="mode-btn" onclick="setMode('merge')" id="mode-merge">Merger</button>
+        </div>
+        <button class="btn secondary" id="theme-toggle" style="padding:6px 12px;">🌙</button>
+    </div>
+
+    <div id="settings-extract" class="settings-panel active">
+        <div class="setting-row">
+            <strong>Extraction Settings:</strong>
+            <span style="color:var(--text-sub); font-size:0.8em; margin-left: auto;">Auto-sorts by filename</span>
+        </div>
+        <div class="setting-row">
+            <span>Keep original filenames</span>
+            <label class="switch"><input type="checkbox" id="keep-names" checked><span class="slider"></span></label>
+        </div>
+    </div>
+
+    <div id="settings-merge" class="settings-panel">
+        <div class="setting-row">
+            <strong>Merger Settings:</strong>
+        </div>
+        <div class="setting-row">
+            <span>First Page is Cover (Single)</span>
+            <label class="switch"><input type="checkbox" id="is-cover" onchange="renderAll()"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+            <span>Shift Images (Add Blank First)</span>
+            <button class="btn secondary" onclick="shiftImages()" style="padding: 2px 8px; font-size: 0.8em;">Apply Shift</button>
+        </div>
     </div>
 
     <div id="drop-zone">
-        <h3>Drag & Drop MHTML files</h3>
-        <p style="color:var(--text-sub)">or click to browse</p>
+        <h3>Drag & Drop MHTML Files</h3>
+        <p style="color:#64748b">or click to browse</p>
         <input type="file" id="file-input" multiple accept=".mhtml,.mht" style="display:none">
     </div>
 
     <div id="progress">Processing...</div>
 
-    <div class="controls" id="main-controls" style="display:none;">
-        <button id="dl-all-btn">Download All (Zip)</button>
-        <button id="reset-btn" class="secondary">Clear</button>
-        
-        <div style="width:100%"></div> <div class="toggle-row">
-            <span>Merge Spreads</span>
-            <label class="switch"><input type="checkbox" id="merge-mode" onchange="renderAll()"><span class="slider"></span></label>
-        </div>
-        <div class="toggle-row">
-            <span>First Page is Cover</span>
-            <label class="switch"><input type="checkbox" id="cover-mode" onchange="renderAll()"><span class="slider"></span></label>
-        </div>
-    </div>
-
     <div id="chapter-list"></div>
+
+    <div class="btn-group" id="main-controls" style="display:none">
+        <button class="btn" id="dl-all-btn">Download All (Zip)</button>
+        <button class="btn secondary" id="reset-btn">Reset / Clear</button>
+    </div>
 </div>
 
 <script>
     // State
     let worker;
     let rawGroups = [];
+    let currentMode = 'extract'; // 'extract' or 'merge'
     let processingQueue = [];
     let processedCount = 0;
 
@@ -99,8 +125,7 @@
         progress: document.getElementById('progress'),
         controls: document.getElementById('main-controls'),
         dlBtn: document.getElementById('dl-all-btn'),
-        merge: document.getElementById('merge-mode'),
-        cover: document.getElementById('cover-mode')
+        themeBtn: document.getElementById('theme-toggle')
     };
 
     function init() {
@@ -108,17 +133,17 @@
         worker = new Worker('worker.js');
         worker.onmessage = handleWorkerMsg;
         
-        // Init Service Worker
+        // Service Worker
         if('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('SW Registered'))
-                .catch(err => console.log('SW Fail:', err));
+            navigator.serviceWorker.register('sw.js').catch(console.error);
         }
 
         // Theme
-        if(localStorage.getItem('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        if(localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
 
-        // Events
+        // Event Listeners
         els.drop.onclick = () => els.input.click();
         els.drop.ondragover = e => { e.preventDefault(); els.drop.style.borderColor = 'var(--primary)'; };
         els.drop.ondragleave = () => els.drop.style.borderColor = 'var(--border)';
@@ -129,10 +154,11 @@
         };
         els.input.onchange = e => handleFiles(e.target.files);
         
-        document.getElementById('theme-toggle').onclick = () => {
+        els.themeBtn.onclick = () => {
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+            const newTheme = isDark ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
         };
 
         els.dlBtn.onclick = () => {
@@ -140,23 +166,29 @@
             setBtnState(true, 'Zipping...');
             worker.postMessage({ type: 'zip', groups: rawGroups });
         };
-        
+
         document.getElementById('reset-btn').onclick = () => location.reload();
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('mode-extract').className = `mode-btn ${mode === 'extract' ? 'active' : ''}`;
+        document.getElementById('mode-merge').className = `mode-btn ${mode === 'merge' ? 'active' : ''}`;
+        document.getElementById('settings-extract').classList.toggle('active', mode === 'extract');
+        document.getElementById('settings-merge').classList.toggle('active', mode === 'merge');
+        renderAll();
     }
 
     async function handleFiles(files) {
         if(!files.length) return;
-        
         els.drop.style.display = 'none';
         els.progress.style.display = 'block';
-        els.progress.innerText = `Preparing ${files.length} files...`;
 
-        // 1. Sort files naturally (Chapter 1, Chapter 2, Chapter 10)
+        // Sort files strictly by number (Chapter 1, 2, 10)
         processingQueue = Array.from(files).sort((a, b) => 
             a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
         );
 
-        // 2. Start processing queue
         processedCount = 0;
         processNext();
     }
@@ -170,82 +202,67 @@
         }
 
         const file = processingQueue[processedCount];
-        els.progress.innerText = `Extracting ${processedCount + 1}/${processingQueue.length}: ${file.name}`;
-        
+        els.progress.innerText = `Processing ${processedCount + 1}/${processingQueue.length}: ${file.name}`;
         worker.postMessage({ type: 'extractOne', file: file, fileId: processedCount });
     }
 
     function handleWorkerMsg(e) {
-        const { type, fileId, groupName, images, blob, filename } = e.data;
-
+        const { type, groupName, images, blob, filename } = e.data;
         if (type === 'done') {
             rawGroups.push({ groupName, images });
             processedCount++;
             processNext();
         } 
         else if (type === 'zipDone') {
-            downloadBlob(blob, filename);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
             setBtnState(false, 'Download All (Zip)');
         }
         else if (type === 'error') {
             console.error(e.data.message);
             processedCount++;
-            processNext(); // Skip and continue
+            processNext();
         }
     }
 
+    // --- Rendering Logic ---
     function renderAll() {
         els.list.innerHTML = '';
-        // Sort groups again by name just in case async messed order
         rawGroups.sort((a,b) => a.groupName.localeCompare(b.groupName, undefined, {numeric:true}));
-        
-        rawGroups.forEach((group, idx) => {
-            renderChapter(group, idx);
-        });
+        rawGroups.forEach(group => renderChapter(group));
     }
 
-    function renderChapter(group, idx) {
+    function renderChapter(group) {
         const div = document.createElement('div');
         div.className = 'chapter';
         
-        // Header
         const head = document.createElement('div');
         head.className = 'chap-head';
+        head.innerHTML = `<span><b>${group.groupName}</b> <small>(${group.images.length} pages)</small></span>`;
         
-        // Title
-        const title = document.createElement('span');
-        title.innerHTML = `<b>${group.groupName}</b> <small>(${group.images.length} pages)</small>`;
-        
-        // Actions
-        const actions = document.createElement('div');
-        actions.className = 'chap-actions';
-        
-        // Download Single Button
-        const dlSingle = document.createElement('span');
-        dlSingle.innerText = '⬇️';
-        dlSingle.className = 'icon-btn';
-        dlSingle.title = "Download this chapter only";
-        dlSingle.onclick = (e) => {
+        // Single Download Icon
+        const dlIcon = document.createElement('button');
+        dlIcon.innerText = '⬇️';
+        dlIcon.style.cssText = "background:none; border:none; cursor:pointer;";
+        dlIcon.title = "Download this chapter";
+        dlIcon.onclick = (e) => {
             e.stopPropagation();
-            setBtnState(true, 'Zipping Single...');
+            setBtnState(true, 'Zipping Chapter...');
             worker.postMessage({ type: 'zip', groups: [group] });
         };
-        
-        actions.appendChild(dlSingle);
-        head.appendChild(title);
-        head.appendChild(actions);
+        head.appendChild(dlIcon);
 
-        // Content
         const content = document.createElement('div');
         content.className = 'chap-content';
-        
-        // Accordion toggle
-        head.onclick = () => {
-            const isOpen = content.classList.contains('open');
-            // Close others (optional, keep it simple for now)
+
+        head.onclick = (e) => {
+            if(e.target === dlIcon) return;
             content.classList.toggle('open');
-            if(!isOpen && !content.hasChildNodes()) {
-                renderImages(content, group);
+            if(content.classList.contains('open') && !content.hasChildNodes()) {
+                if(currentMode === 'merge') renderMergeMode(content, group);
+                else renderExtractMode(content, group);
             }
         };
 
@@ -254,82 +271,75 @@
         els.list.appendChild(div);
     }
 
-    function renderImages(container, group) {
+    function renderExtractMode(container, group) {
         const grid = document.createElement('div');
         grid.className = 'grid';
-        
-        const isMerge = els.merge.checked;
-        const isCover = els.cover.checked;
-        
+        group.images.forEach(img => {
+            const el = document.createElement('img');
+            const blob = new Blob([img.data]);
+            el.src = URL.createObjectURL(blob);
+            grid.appendChild(el);
+        });
+        container.appendChild(grid);
+    }
+
+    function renderMergeMode(container, group) {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        // Make grid 2-col for preview
+        grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+
+        const isCover = document.getElementById('is-cover').checked;
         let i = 0;
-        
-        // Handle Cover (First page alone)
-        if (isMerge && isCover && group.images.length > 0) {
-            appendImg(grid, group.images[0], true);
-            i = 1;
+
+        if(isCover && group.images.length > 0) {
+             const img = document.createElement('img');
+             img.src = URL.createObjectURL(new Blob([group.images[0].data]));
+             img.style.gridColumn = "1 / -1"; // Full width
+             img.style.width = "50%";
+             img.style.margin = "0 auto";
+             grid.appendChild(img);
+             i = 1;
         }
 
-        // Loop rest
         while(i < group.images.length) {
-            if(isMerge && i + 1 < group.images.length) {
-                // Merge Pair
-                appendMerged(grid, group.images[i], group.images[i+1]);
-                i += 2;
-            } else {
-                // Single Page
-                appendImg(grid, group.images[i], false);
-                i++;
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex';
+            wrap.style.border = '1px solid #ddd';
+            
+            // Left Image (Next in array)
+            if(i < group.images.length) {
+                const imgL = document.createElement('img');
+                imgL.src = URL.createObjectURL(new Blob([group.images[i].data]));
+                imgL.style.width = "50%";
+                wrap.appendChild(imgL);
             }
+            // Right Image
+            if(i+1 < group.images.length) {
+                const imgR = document.createElement('img');
+                imgR.src = URL.createObjectURL(new Blob([group.images[i+1].data]));
+                imgR.style.width = "50%";
+                wrap.appendChild(imgR);
+            }
+            grid.appendChild(wrap);
+            i += 2;
         }
         container.appendChild(grid);
     }
 
-    function appendImg(grid, imgObj, isCenter) {
-        const blob = new Blob([imgObj.data], {type: 'image/jpeg'});
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(blob);
-        if(isCenter) {
-            img.style.gridColumn = "span 2"; 
-            img.style.width = "50%";
-            img.style.margin = "0 auto";
-        }
-        grid.appendChild(img);
-    }
-
-    function appendMerged(grid, imgLeft, imgRight) {
-        // Logic to canvas merge could go here, 
-        // but for visual "Reader" mode, we just place them side-by-side in CSS
-        // or actually merge them into one canvas?
-        // Since user asked for "Merger Tool", let's do visual merge for now
-        // A true canvas merge is heavy on memory for DOM, better to just show side by side
+    // --- Helper Features ---
+    window.shiftImages = async function() {
+        if(rawGroups.length === 0) return;
+        // 1x1 Transparent Pixel
+        const whitePixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+        const res = await fetch("data:image/png;base64," + whitePixel);
+        const u8 = new Uint8Array(await res.arrayBuffer());
         
-        // Visual Merge Wrapper
-        const wrapper = document.createElement('div');
-        wrapper.className = 'merged-spread';
-        wrapper.style.display = 'flex';
-        
-        const b1 = new Blob([imgLeft.data]);
-        const b2 = new Blob([imgRight.data]);
-        
-        const i1 = document.createElement('img'); i1.src = URL.createObjectURL(b1); i1.style.width='50%';
-        const i2 = document.createElement('img'); i2.src = URL.createObjectURL(b2); i2.style.width='50%';
-        
-        // Manga is usually Right-to-Left, so Right Page is First in array? 
-        // Usually file names are 001, 002. 
-        // 002 is Left, 001 is Right.
-        // Let's assume standard LTR file ordering for now.
-        
-        wrapper.appendChild(i1);
-        wrapper.appendChild(i2);
-        grid.appendChild(wrapper);
-    }
-
-    function downloadBlob(blob, name) {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = name;
-        a.click();
-    }
+        // Add to first group
+        rawGroups[0].images.unshift({ name: "0000_shift.png", data: u8 });
+        alert("Shifted! A blank page was added to the start.");
+        renderAll();
+    };
 
     function setBtnState(disabled, text) {
         els.dlBtn.disabled = disabled;
