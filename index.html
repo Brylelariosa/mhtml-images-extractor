@@ -4,624 +4,338 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#4f46e5">
-    <meta name="description" content="Manga Extractor & Merger Tool">
     <title>Manga Tool Ultimate</title>
-    
     <link rel="manifest" href="manifest.json">
-
     <style>
-        :root { --primary: #4f46e5; --bg-color: #f8fafc; --card-bg: #ffffff; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0; --panel-bg: #f1f5f9; --drop-bg: #f8fafc; --drop-border: #cbd5e1; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); --modal-bg: rgba(255, 255, 255, 0.98); }
-        [data-theme="dark"] { --primary: #6366f1; --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-sub: #94a3b8; --border: #334155; --panel-bg: #0f172a; --drop-bg: #1e293b; --drop-border: #475569; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); --modal-bg: rgba(15, 23, 42, 0.98); }
+        :root { --primary: #4f46e5; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
+        [data-theme="dark"] { --primary: #6366f1; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; }
         
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: start; min-height: 100vh; margin: 0; padding: 20px; padding-bottom: 100px; transition: 0.3s; }
+        body { margin:0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 80px; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
         
-        .container { width: 100%; max-width: 900px; }
-        .card { background: var(--card-bg); border-radius: 16px; box-shadow: var(--shadow); padding: 1.5rem; border: 1px solid var(--border); }
+        /* Drop Zone */
+        #drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: 0.2s; background: var(--card); }
+        #drop-zone:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
         
-        /* Header */
-        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-        h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
-        .count-badge { font-size: 0.8rem; background: var(--primary); color: white; padding: 4px 10px; border-radius: 20px; margin-left: 10px; display: none;}
-        
-        /* Tabs */
-        .mode-tabs { display: flex; background: var(--panel-bg); padding: 4px; border-radius: 12px; gap: 4px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
-        .mode-tab { flex: 1; border: none; background: transparent; padding: 10px; font-weight: 600; color: var(--text-sub); border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
-        .mode-tab.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-
         /* Controls */
-        .controls-wrapper { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-        .control-panel { background: var(--panel-bg); padding: 1rem; border-radius: 12px; border: 1px solid var(--border); }
-        .control-label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-sub); margin-bottom: 0.8rem; }
+        .controls { display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
         
-        .range-row { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 600; }
-        input[type=range] { flex: 1; accent-color: var(--primary); }
-        
-        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 500; }
-        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        /* Toggles */
+        .toggle-row { display: flex; align-items: center; gap: 10px; font-size: 0.9em; margin-top: 10px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--drop-border); transition: .3s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--primary); }
-        input:checked + .slider:before { transform: translateX(16px); }
+        input:checked + .slider:before { transform: translateX(20px); }
 
-        .btn-sm { font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); cursor: pointer; color: var(--text-main); font-weight: 600; transition:0.2s; }
-        .btn-sm:hover { background: var(--primary); color: white; border-color: var(--primary); }
-
-        /* Upload */
-        .drop-zone { border: 2px dashed var(--drop-border); border-radius: 12px; padding: 3rem 2rem; text-align: center; cursor: pointer; background: var(--drop-bg); transition: 0.2s; }
-        .drop-zone:hover { border-color: var(--primary); background: rgba(79, 70, 229, 0.05); transform: scale(0.99); }
+        /* Chapter List */
+        .chapter { background: var(--card); margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
+        .chap-head { padding: 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .chap-head:hover { background: rgba(0,0,0,0.02); }
+        .chap-actions { display: flex; gap: 10px; align-items: center; }
+        .icon-btn { cursor: pointer; padding: 4px; border-radius: 4px; font-size: 1.2em; }
+        .icon-btn:hover { background: rgba(0,0,0,0.1); }
         
-        /* Progress */
-        .progress-container { margin-top: 2rem; display: none; }
-        .progress-info { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
-        .progress-track { width: 100%; height: 6px; background: var(--border); border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.1s linear; }
-
-        /* Gallery / List View */
-        .chapter-list { margin-top: 2rem; display: flex; flex-direction: column; gap: 10px; }
-        .chapter-item { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card-bg); }
-        .chapter-head { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; background: var(--panel-bg); cursor: pointer; user-select: none; font-weight: 600; font-size: 0.9rem; }
-        .chapter-head:hover { background: var(--border); }
+        .chap-content { display: none; padding: 15px; border-top: 1px solid var(--border); }
+        .chap-content.open { display: block; }
         
-        /* The body is hidden by default */
-        .chapter-body { display: none; padding: 10px; border-top: 1px solid var(--border); }
-        .chapter-body.expanded { display: block; }
+        /* Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+        .grid img { width: 100%; height: auto; border-radius: 4px; display: block; }
+        .grid .merged-spread { grid-column: span 2; } 
         
-        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
-        .gallery-grid.merge-mode { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-        
-        .gallery-item { position: relative; background: var(--panel-bg); border-radius: 6px; overflow: hidden; cursor: zoom-in; aspect-ratio: 2/3; border: 1px solid var(--border); }
-        .gallery-item.merge-item { aspect-ratio: 4/3; }
-        .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
-
-        /* Sticky Footer for Actions */
-        .action-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card-bg); padding: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); display: none; justify-content: center; gap: 15px; border-top: 1px solid var(--border); z-index: 100; flex-wrap: wrap;}
-        .btn { padding: 12px 24px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; background: var(--primary); color: white; min-width: 130px; }
-        .btn-secondary { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border); }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
-
-        /* Modal */
-        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--modal-bg); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .modal-content { max-width: 95vw; max-height: 90vh; }
-        .modal img { max-width: 100%; max-height: 90vh; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
-        .close-modal { position: absolute; top: 20px; right: 20px; font-size: 40px; cursor: pointer; z-index: 2002; }
-        
-        .hidden { display: none !important; }
+        #progress { display: none; margin-top: 10px; font-size: 0.9em; color: var(--primary); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="card">
-        <div class="header-row">
-            <div style="display:flex; align-items:center">
-                <h1>Manga Tool</h1>
-                <span id="img-count-badge" class="count-badge">0</span>
-            </div>
-            <button id="theme-toggle" class="mode-tab" style="flex:0; padding: 8px 12px;">🌙</button>
-        </div>
-
-        <div class="mode-tabs">
-            <button class="mode-tab active" id="tab-extract" onclick="setMode('extract')">Extract</button>
-            <button class="mode-tab" id="tab-merge" onclick="setMode('merge')">Merger</button>
-        </div>
-
-        <div class="controls-wrapper">
-            <div id="settings-extract" class="control-panel">
-                <span class="control-label">Extraction Filters</span>
-                <div class="range-row">
-                    <span>Min Size:</span>
-                    <input type="range" id="size-filter" min="0" max="200" value="40" step="5" onchange="saveConfig()">
-                    <span id="size-val">40 KB</span>
-                </div>
-                <div class="toggle-row" style="margin-top:10px">
-                    <span>Exclude GIFs</span>
-                    <label class="switch"><input type="checkbox" id="no-gifs" checked onchange="saveConfig()"><span class="slider"></span></label>
-                </div>
-                <div class="toggle-row" style="margin-top:10px; border-top: 1px solid var(--border); padding-top: 10px;">
-                    <span>Reverse Order</span>
-                    <label class="switch"><input type="checkbox" id="reverse-sort" onchange="saveConfig()"><span class="slider"></span></label>
-                </div>
-            </div>
-
-            <div id="settings-merge" class="control-panel hidden">
-                <span class="control-label">Merger Settings</span>
-                <div class="toggle-row">
-                    <span>Manga Direction (RTL)</span>
-                    <label class="switch"><input type="checkbox" id="rtl-mode" onchange="saveConfig(); clearAndRender()"><span class="slider"></span></label>
-                </div>
-                <div class="toggle-row" style="margin-top:10px; border-top: 1px solid var(--border); padding-top: 10px;">
-                    <span>Fix Offset</span>
-                    <button class="btn-sm" onclick="shiftImages()">Shift (+1 Blank)</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="drop-zone" class="drop-zone">
-            <input type="file" id="file-input" accept=".mhtml,.mht,.jpg,.jpeg,.png,.webp" multiple style="display:none">
-            <span style="font-size: 2rem;">📂</span>
-            <div class="drop-title"><b>Click to upload</b> MHTML or Images</div>
-            <div style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
-                Drag & Drop supported (Unlimited Files)
-            </div>
-        </div>
-
-        <div id="progress-area" class="progress-container">
-            <div class="progress-info">
-                <span id="status-text">Processing...</span>
-                <span id="percent-text">0%</span>
-            </div>
-            <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
-        </div>
-
-        <div id="chapter-list" class="chapter-list"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2>Manga Tool Ult.</h2>
+        <button id="theme-toggle" class="secondary">🌙</button>
     </div>
-</div>
 
-<div id="action-bar" class="action-bar">
-    <button id="add-more-btn" class="btn btn-secondary">Add More</button>
-    <button id="download-btn" class="btn">Download All</button>
-    <button id="reset-btn" class="btn btn-danger">Reset</button>
-</div>
-
-<div id="img-modal" class="modal" onclick="this.style.display='none'">
-    <div class="close-modal">&times;</div>
-    <div class="modal-content">
-        <img id="modal-img" src="">
+    <div id="drop-zone">
+        <h3>Drag & Drop MHTML files</h3>
+        <p style="color:var(--text-sub)">or click to browse</p>
+        <input type="file" id="file-input" multiple accept=".mhtml,.mht" style="display:none">
     </div>
+
+    <div id="progress">Processing...</div>
+
+    <div class="controls" id="main-controls" style="display:none;">
+        <button id="dl-all-btn">Download All (Zip)</button>
+        <button id="reset-btn" class="secondary">Clear</button>
+        
+        <div style="width:100%"></div> <div class="toggle-row">
+            <span>Merge Spreads</span>
+            <label class="switch"><input type="checkbox" id="merge-mode" onchange="renderAll()"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <span>First Page is Cover</span>
+            <label class="switch"><input type="checkbox" id="cover-mode" onchange="renderAll()"><span class="slider"></span></label>
+        </div>
+    </div>
+
+    <div id="chapter-list"></div>
 </div>
-
-<canvas id="merge-canvas" style="display:none;"></canvas>
-
-<script id="worker-code" type="javascript/worker">
-    self.onmessage = function(e) {
-        const { type } = e.data;
-        if (type === 'extractOne') extractSingleMhtml(e.data);
-        if (type === 'zip') createZip(e.data);
-    };
-
-    function extractSingleMhtml({ buffer, filename, config }) {
-        // Decode ArrayBuffer to Text manually or use TextDecoder (much faster/memory efficient)
-        const decoder = new TextDecoder("utf-8");
-        const content = decoder.decode(buffer);
-        
-        const extracted = [];
-        
-        // Find boundary
-        let boundary = null;
-        const bMatch = content.match(/boundary="?([^";\s]+)"?/i);
-        if (bMatch) boundary = bMatch[1];
-        else {
-            const match = content.match(/^--[a-fA-F0-9\-]+(\r?\n|$)/m);
-            if(match) boundary = match[0].trim().replace(/^--/, '');
-        }
-
-        if (boundary) {
-            const parts = content.split("--" + boundary);
-            const minSizeBytes = config.minSizeKB * 1024;
-
-            parts.forEach((part, idx) => {
-                // Find empty line separating headers from body
-                const sep = part.indexOf("\r\n\r\n");
-                let bodyStart = sep, sepLen = 4;
-                if(sep === -1) {
-                    const sep2 = part.indexOf("\n\n");
-                    if(sep2 !== -1) { bodyStart = sep2; sepLen = 2; } else return;
-                }
-
-                const headers = part.substring(0, bodyStart);
-                // Basic cleanup of body
-                const cleanBody = part.substring(bodyStart + sepLen).replace(/[\r\n\t\s]+/g, "");
-                
-                if (cleanBody.length * 0.75 < minSizeBytes) return;
-
-                const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
-                
-                if (typeMatch) {
-                    const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
-                    if (config.excludeGifs && ext === 'gif') return;
-
-                    try {
-                        const bin = atob(cleanBody);
-                        if (bin.length >= minSizeBytes) {
-                            const bytes = new Uint8Array(bin.length);
-                            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                            const name = `img_${String(idx).padStart(4,'0')}.${ext}`;
-                            extracted.push({ name, data: bytes, ext });
-                        }
-                    } catch (err) {}
-                }
-            });
-        }
-        
-        extracted.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
-        if(config.reverse) extracted.reverse();
-
-        const group = extracted.length > 0 ? { groupName: filename.replace(/\.mhtml?/i, ""), images: extracted } : null;
-        
-        self.postMessage({ type: 'extractDone', group: group });
-    }
-
-    function createZip({ groups }) {
-        const crcTable = new Int32Array(256);
-        for(let i=0; i<256; i++){let c=i; for(let k=0; k<8; k++) c=((c&1)?(0xEDB88320^(c>>>1)):(c>>>1)); crcTable[i]=c;}
-        const crc32 = d => {let c=-1; for(let i=0;i<d.length;i++) c=(c>>>8)^crcTable[(c^d[i])&0xFF]; return (c^-1)>>>0;};
-
-        const parts = [], cd = []; 
-        let offset = 0; 
-        const enc = new TextEncoder();
-
-        let totalFiles = 0;
-        groups.forEach(g => totalFiles += g.images.length);
-        let processed = 0;
-
-        for(const group of groups) {
-            const folderName = group.groupName.trim() + "/";
-            for(const img of group.images) {
-                processed++;
-                if(processed % 20 === 0) {
-                     self.postMessage({ type: 'status', text: "Zipping...", percent: 50 + ((processed/totalFiles)*50) });
-                }
-
-                const path = folderName + img.name;
-                const n = enc.encode(path); 
-                const cr = crc32(img.data);
-                
-                const h = new Uint8Array(30+n.length); const v=new DataView(h.buffer);
-                v.setUint32(0,0x04034b50,true); v.setUint16(4,10,true); v.setUint16(6,0,true); v.setUint16(8,0,true);
-                v.setUint32(14,cr,true); v.setUint32(18,img.data.length,true); v.setUint32(22,img.data.length,true);
-                v.setUint16(26,n.length,true); v.setUint16(28,0,true); h.set(n,30); 
-                
-                parts.push(h); parts.push(img.data);
-
-                const c = new Uint8Array(46+n.length); const cv=new DataView(c.buffer);
-                cv.setUint32(0,0x02014b50,true); cv.setUint16(4,10,true); cv.setUint16(6,10,true);
-                cv.setUint16(8,0,true); cv.setUint16(10,0,true); cv.setUint32(16,cr,true);
-                cv.setUint32(20,img.data.length,true); cv.setUint32(24,img.data.length,true);
-                cv.setUint16(28,n.length,true); cv.setUint16(30,0,true); cv.setUint16(32,0,true);
-                cv.setUint32(42,offset,true); c.set(n,46); 
-                
-                cd.push(c); offset += h.length + img.data.length;
-            }
-        }
-
-        const cdLen = cd.reduce((a,c)=>a+c.length,0);
-        const eocd = new Uint8Array(22); const ev=new DataView(eocd.buffer);
-        ev.setUint32(0,0x06054b50,true); ev.setUint16(8,processed,true);
-        ev.setUint16(10,processed,true); ev.setUint32(12,cdLen,true); ev.setUint32(16,offset,true);
-        
-        const blob = new Blob([...parts, ...cd, eocd], {type: 'application/zip'});
-        self.postMessage({ type: 'zipDone', blob, filename: "Manga_Batch.zip" });
-    }
-</script>
 
 <script>
-    // --- MAIN THREAD ---
-    let currentMode = 'extract';
-    let rawGroups = []; 
-    let activeUrls = []; 
-    let worker = null;
-    
-    // Process Queue State
+    // State
+    let worker;
+    let rawGroups = [];
     let processingQueue = [];
-    let queueIndex = 0;
-    let looseImagesBuffer = [];
+    let processedCount = 0;
 
+    // Elements
     const els = {
         drop: document.getElementById('drop-zone'),
         input: document.getElementById('file-input'),
-        progress: document.getElementById('progress-area'),
-        bar: document.getElementById('progress-bar'),
-        status: document.getElementById('status-text'),
-        percent: document.getElementById('percent-text'),
         list: document.getElementById('chapter-list'),
-        actionBar: document.getElementById('action-bar'),
-        badge: document.getElementById('img-count-badge'),
-        canvas: document.getElementById('merge-canvas'),
-        settingsExtract: document.getElementById('settings-extract'),
-        settingsMerge: document.getElementById('settings-merge'),
-        downloadBtn: document.getElementById('download-btn'),
-        addMoreBtn: document.getElementById('add-more-btn'),
-        modal: document.getElementById('img-modal'),
-        modalImg: document.getElementById('modal-img')
+        progress: document.getElementById('progress'),
+        controls: document.getElementById('main-controls'),
+        dlBtn: document.getElementById('dl-all-btn'),
+        merge: document.getElementById('merge-mode'),
+        cover: document.getElementById('cover-mode')
     };
-
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
     function init() {
-        const blob = new Blob([document.getElementById('worker-code').textContent], {type: 'text/javascript'});
-        worker = new Worker(URL.createObjectURL(blob));
+        // Init Worker
+        worker = new Worker('worker.js');
         worker.onmessage = handleWorkerMsg;
         
-        const saved = JSON.parse(localStorage.getItem('manga-tool-cfg') || '{}');
-        if(saved.minSize) document.getElementById('size-filter').value = saved.minSize;
-        if(saved.noGifs !== undefined) document.getElementById('no-gifs').checked = saved.noGifs;
-        if(saved.reverse !== undefined) document.getElementById('reverse-sort').checked = saved.reverse;
-        if(saved.rtl !== undefined) document.getElementById('rtl-mode').checked = saved.rtl;
-        if(saved.theme) document.documentElement.setAttribute('data-theme', saved.theme);
-    }
+        // Init Service Worker
+        if('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('SW Registered'))
+                .catch(err => console.log('SW Fail:', err));
+        }
 
-    window.saveConfig = function() {
-        const cfg = {
-            minSize: document.getElementById('size-filter').value,
-            noGifs: document.getElementById('no-gifs').checked,
-            reverse: document.getElementById('reverse-sort').checked,
-            rtl: document.getElementById('rtl-mode').checked,
-            theme: document.documentElement.getAttribute('data-theme')
+        // Theme
+        if(localStorage.getItem('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+
+        // Events
+        els.drop.onclick = () => els.input.click();
+        els.drop.ondragover = e => { e.preventDefault(); els.drop.style.borderColor = 'var(--primary)'; };
+        els.drop.ondragleave = () => els.drop.style.borderColor = 'var(--border)';
+        els.drop.ondrop = e => {
+            e.preventDefault();
+            els.drop.style.borderColor = 'var(--border)';
+            handleFiles(e.dataTransfer.files);
         };
-        localStorage.setItem('manga-tool-cfg', JSON.stringify(cfg));
-        document.getElementById('size-val').innerText = cfg.minSize + " KB";
-    };
+        els.input.onchange = e => handleFiles(e.target.files);
+        
+        document.getElementById('theme-toggle').onclick = () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        };
 
-    // --- FILES ---
-    els.drop.onclick = () => els.input.click();
-    els.addMoreBtn.onclick = () => els.input.click();
-    
-    els.input.onchange = () => { 
-        if(els.input.files.length) handleFiles(els.input.files); 
-        // Reset value so we can select same files again if needed
-        els.input.value = ''; 
-    };
+        els.dlBtn.onclick = () => {
+            if(!rawGroups.length) return;
+            setBtnState(true, 'Zipping...');
+            worker.postMessage({ type: 'zip', groups: rawGroups });
+        };
+        
+        document.getElementById('reset-btn').onclick = () => location.reload();
+    }
 
     async function handleFiles(files) {
+        if(!files.length) return;
+        
         els.drop.style.display = 'none';
         els.progress.style.display = 'block';
-        els.actionBar.style.display = 'none'; // Hide buttons while processing
-        
-        // Use a fresh queue for this batch
-        processingQueue = Array.from(files); 
-        queueIndex = 0;
-        looseImagesBuffer = [];
-        
-        // Start Processing Loop
-        processNextFile();
+        els.progress.innerText = `Preparing ${files.length} files...`;
+
+        // 1. Sort files naturally (Chapter 1, Chapter 2, Chapter 10)
+        processingQueue = Array.from(files).sort((a, b) => 
+            a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        // 2. Start processing queue
+        processedCount = 0;
+        processNext();
     }
 
-    async function processNextFile() {
-        if (queueIndex >= processingQueue.length) {
-            // Batch Complete
-            if (looseImagesBuffer.length > 0) {
-                rawGroups.push({ groupName: "Loose Images " + (rawGroups.length+1), images: looseImagesBuffer });
-            }
-            finishProcessing();
+    function processNext() {
+        if (processedCount >= processingQueue.length) {
+            els.progress.style.display = 'none';
+            els.controls.style.display = 'flex';
+            renderAll();
             return;
         }
 
-        const file = processingQueue[queueIndex];
-        const pct = Math.round((queueIndex / processingQueue.length) * 100);
-        els.status.innerText = `Processing ${queueIndex + 1}/${processingQueue.length}: ${file.name}`;
-        els.bar.style.width = pct + "%";
-        els.percent.innerText = pct + "%";
-
-        const name = file.name.toLowerCase();
+        const file = processingQueue[processedCount];
+        els.progress.innerText = `Extracting ${processedCount + 1}/${processingQueue.length}: ${file.name}`;
         
-        if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
-            try {
-                // MEMORY FIX: Read as ArrayBuffer and Transfer to Worker
-                const buf = await file.arrayBuffer();
-                
-                const config = {
-                    minSizeKB: parseInt(document.getElementById('size-filter').value),
-                    reverse: document.getElementById('reverse-sort').checked,
-                    excludeGifs: document.getElementById('no-gifs').checked
-                };
-                
-                // Transfer buffer to worker (Zero Copy)
-                worker.postMessage({ 
-                    type: 'extractOne', 
-                    buffer: buf, 
-                    filename: file.name, 
-                    config 
-                }, [buf]); 
-            } catch (err) {
-                console.error("Error reading file:", err);
-                queueIndex++;
-                processNextFile(); 
-            }
-        } 
-        else if (name.match(/\.(jpg|jpeg|png|webp)$/)) {
-            try {
-                const buf = await file.arrayBuffer();
-                looseImagesBuffer.push({ name: file.name, data: new Uint8Array(buf), ext: name.split('.').pop() });
-            } catch (e) {}
-            queueIndex++;
-            processNextFile(); 
-        }
-        else {
-            queueIndex++;
-            processNextFile();
-        }
+        worker.postMessage({ type: 'extractOne', file: file, fileId: processedCount });
     }
 
     function handleWorkerMsg(e) {
-        const { type, text, percent, group, blob, filename } = e.data;
-        
-        if(type === 'status') {
-            els.status.innerText = text;
-            els.bar.style.width = percent + "%";
-            els.percent.innerText = Math.round(percent) + "%";
-        }
-        else if (type === 'extractDone') {
-            if (group) {
-                rawGroups.push(group);
-            }
-            queueIndex++;
-            processNextFile();
-        }
+        const { type, fileId, groupName, images, blob, filename } = e.data;
+
+        if (type === 'done') {
+            rawGroups.push({ groupName, images });
+            processedCount++;
+            processNext();
+        } 
         else if (type === 'zipDone') {
             downloadBlob(blob, filename);
-            els.downloadBtn.innerText = "Download All";
-            els.downloadBtn.disabled = false;
-            els.status.innerText = "Complete";
-            els.bar.style.width = "100%";
+            setBtnState(false, 'Download All (Zip)');
+        }
+        else if (type === 'error') {
+            console.error(e.data.message);
+            processedCount++;
+            processNext(); // Skip and continue
         }
     }
 
-    function finishProcessing() {
-        els.progress.style.display = 'none';
-        els.actionBar.style.display = 'flex';
-        
-        const totalImages = rawGroups.reduce((acc, g) => acc + g.images.length, 0);
-        els.badge.style.display = 'inline-block';
-        els.badge.innerText = `${rawGroups.length} Files / ${totalImages} imgs`;
-        
-        clearAndRender();
-    }
-
-    // --- RENDER LOGIC ---
-    function clearAndRender() {
+    function renderAll() {
         els.list.innerHTML = '';
+        // Sort groups again by name just in case async messed order
+        rawGroups.sort((a,b) => a.groupName.localeCompare(b.groupName, undefined, {numeric:true}));
+        
         rawGroups.forEach((group, idx) => {
-            const item = document.createElement('div');
-            item.className = 'chapter-item';
-            
-            const head = document.createElement('div');
-            head.className = 'chapter-head';
-            head.innerHTML = `<span>${group.groupName}</span> <span style="font-size:0.8em; color:var(--text-sub)">${group.images.length} images</span>`;
-            
-            const body = document.createElement('div');
-            body.className = 'chapter-body';
-            
-            head.onclick = () => toggleChapter(idx, body, group);
-            
-            item.appendChild(head);
-            item.appendChild(body);
-            els.list.appendChild(item);
+            renderChapter(group, idx);
         });
     }
 
-    async function toggleChapter(idx, container, group) {
-        const isExpanded = container.classList.contains('expanded');
-        
-        if (isExpanded) {
-            container.classList.remove('expanded');
-            container.innerHTML = ''; 
-        } else {
-            container.classList.add('expanded');
-            container.innerHTML = '<div style="padding:10px; text-align:center">Generating previews...</div>';
-            
-            setTimeout(async () => {
-                const grid = document.createElement('div');
-                grid.className = currentMode === 'extract' ? 'gallery-grid' : 'gallery-grid merge-mode';
-                
-                if (currentMode === 'extract') {
-                    // Limit preview to first 20 images to save DOM memory if chapter is huge
-                    const limit = Math.min(group.images.length, 50); 
-                    for(let i=0; i<limit; i++) {
-                        const img = group.images[i];
-                        const blob = new Blob([img.data], {type: 'image/'+img.ext});
-                        const url = URL.createObjectURL(blob);
-                        activeUrls.push(url);
-                        addToGrid(grid, url, false);
-                    }
-                    if(group.images.length > 50) {
-                         const more = document.createElement('div');
-                         more.innerText = `+${group.images.length - 50} more (download to see all)`;
-                         more.style.gridColumn = "1/-1";
-                         more.style.textAlign = "center";
-                         more.style.padding = "10px";
-                         more.style.fontSize = "0.8rem";
-                         more.style.color = "var(--text-sub)";
-                         grid.appendChild(more);
-                    }
-                } else {
-                    const ctx = els.canvas.getContext('2d');
-                    const isRTL = document.getElementById('rtl-mode').checked;
-                    // Limit previews for merge mode too
-                    const limit = Math.min(group.images.length, 40);
-                    for(let i=0; i<limit; i+=2) {
-                        const img1 = group.images[i];
-                        const img2 = group.images[i+1];
-                        
-                        let blob;
-                        if(!img2) {
-                            blob = new Blob([img1.data]);
-                        } else {
-                            const b1 = await createImageBitmap(new Blob([img1.data]));
-                            const b2 = await createImageBitmap(new Blob([img2.data]));
-                            els.canvas.width = b1.width + b2.width;
-                            els.canvas.height = Math.max(b1.height, b2.height);
-                            ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-                            if(isRTL) { ctx.drawImage(b2,0,0); ctx.drawImage(b1,b2.width,0); }
-                            else { ctx.drawImage(b1,0,0); ctx.drawImage(b2,b1.width,0); }
-                            blob = await new Promise(r=>els.canvas.toBlob(r, 'image/jpeg', 0.9));
-                        }
-                        const url = URL.createObjectURL(blob);
-                        activeUrls.push(url);
-                        addToGrid(grid, url, true);
-                    }
-                }
-                container.innerHTML = '';
-                container.appendChild(grid);
-            }, 10);
-        }
-    }
-
-    function addToGrid(grid, url, isMerge) {
+    function renderChapter(group, idx) {
         const div = document.createElement('div');
-        div.className = `gallery-item ${isMerge?'merge-item':''}`;
-        div.innerHTML = `<img src="${url}" loading="lazy">`;
-        div.onclick = () => {
-            els.modalImg.src = url;
-            els.modal.style.display = 'flex';
+        div.className = 'chapter';
+        
+        // Header
+        const head = document.createElement('div');
+        head.className = 'chap-head';
+        
+        // Title
+        const title = document.createElement('span');
+        title.innerHTML = `<b>${group.groupName}</b> <small>(${group.images.length} pages)</small>`;
+        
+        // Actions
+        const actions = document.createElement('div');
+        actions.className = 'chap-actions';
+        
+        // Download Single Button
+        const dlSingle = document.createElement('span');
+        dlSingle.innerText = '⬇️';
+        dlSingle.className = 'icon-btn';
+        dlSingle.title = "Download this chapter only";
+        dlSingle.onclick = (e) => {
+            e.stopPropagation();
+            setBtnState(true, 'Zipping Single...');
+            worker.postMessage({ type: 'zip', groups: [group] });
         };
-        grid.appendChild(div);
+        
+        actions.appendChild(dlSingle);
+        head.appendChild(title);
+        head.appendChild(actions);
+
+        // Content
+        const content = document.createElement('div');
+        content.className = 'chap-content';
+        
+        // Accordion toggle
+        head.onclick = () => {
+            const isOpen = content.classList.contains('open');
+            // Close others (optional, keep it simple for now)
+            content.classList.toggle('open');
+            if(!isOpen && !content.hasChildNodes()) {
+                renderImages(content, group);
+            }
+        };
+
+        div.appendChild(head);
+        div.appendChild(content);
+        els.list.appendChild(div);
     }
 
-    // --- ACTIONS ---
-    window.setMode = (mode) => {
-        currentMode = mode;
-        document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
-        document.getElementById(`tab-${mode}`).classList.add('active');
-        if(mode === 'extract') {
-            els.settingsExtract.classList.remove('hidden');
-            els.settingsMerge.classList.add('hidden');
-        } else {
-            els.settingsExtract.classList.add('hidden');
-            els.settingsMerge.classList.remove('hidden');
+    function renderImages(container, group) {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        
+        const isMerge = els.merge.checked;
+        const isCover = els.cover.checked;
+        
+        let i = 0;
+        
+        // Handle Cover (First page alone)
+        if (isMerge && isCover && group.images.length > 0) {
+            appendImg(grid, group.images[0], true);
+            i = 1;
         }
-        clearAndRender();
-    };
 
-    window.shiftImages = async function() {
-        if(rawGroups.length > 0) {
-             const whitePixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
-             const res = await fetch("data:image/png;base64," + whitePixel);
-             const u8 = new Uint8Array(await res.arrayBuffer());
-             rawGroups[0].images.unshift({ name: "0000.png", data: u8, ext: "png" });
-             clearAndRender();
+        // Loop rest
+        while(i < group.images.length) {
+            if(isMerge && i + 1 < group.images.length) {
+                // Merge Pair
+                appendMerged(grid, group.images[i], group.images[i+1]);
+                i += 2;
+            } else {
+                // Single Page
+                appendImg(grid, group.images[i], false);
+                i++;
+            }
         }
+        container.appendChild(grid);
     }
 
-    els.downloadBtn.onclick = () => {
-        if(!rawGroups.length) return;
-        els.downloadBtn.disabled = true;
-        els.downloadBtn.innerText = "Zipping...";
-        els.progress.style.display = 'block';
-        worker.postMessage({ type: 'zip', groups: rawGroups });
-    };
+    function appendImg(grid, imgObj, isCenter) {
+        const blob = new Blob([imgObj.data], {type: 'image/jpeg'});
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        if(isCenter) {
+            img.style.gridColumn = "span 2"; 
+            img.style.width = "50%";
+            img.style.margin = "0 auto";
+        }
+        grid.appendChild(img);
+    }
 
-    document.getElementById('reset-btn').onclick = () => {
-        activeUrls.forEach(u => URL.revokeObjectURL(u));
-        location.reload();
-    };
-
-    document.getElementById('theme-toggle').onclick = () => {
-        const html = document.documentElement;
-        const newT = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        html.setAttribute('data-theme', newT);
-        saveConfig();
+    function appendMerged(grid, imgLeft, imgRight) {
+        // Logic to canvas merge could go here, 
+        // but for visual "Reader" mode, we just place them side-by-side in CSS
+        // or actually merge them into one canvas?
+        // Since user asked for "Merger Tool", let's do visual merge for now
+        // A true canvas merge is heavy on memory for DOM, better to just show side by side
+        
+        // Visual Merge Wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'merged-spread';
+        wrapper.style.display = 'flex';
+        
+        const b1 = new Blob([imgLeft.data]);
+        const b2 = new Blob([imgRight.data]);
+        
+        const i1 = document.createElement('img'); i1.src = URL.createObjectURL(b1); i1.style.width='50%';
+        const i2 = document.createElement('img'); i2.src = URL.createObjectURL(b2); i2.style.width='50%';
+        
+        // Manga is usually Right-to-Left, so Right Page is First in array? 
+        // Usually file names are 001, 002. 
+        // 002 is Left, 001 is Right.
+        // Let's assume standard LTR file ordering for now.
+        
+        wrapper.appendChild(i1);
+        wrapper.appendChild(i2);
+        grid.appendChild(wrapper);
     }
 
     function downloadBlob(blob, name) {
         const a = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        a.href = url;
+        a.href = URL.createObjectURL(blob);
         a.download = name;
         a.click();
-        setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    }
+
+    function setBtnState(disabled, text) {
+        els.dlBtn.disabled = disabled;
+        const old = els.dlBtn.innerText;
+        els.dlBtn.innerText = text;
+        if(!disabled) setTimeout(() => els.dlBtn.innerText = 'Download All (Zip)', 2000);
     }
 
     init();
