@@ -76,8 +76,9 @@
         .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
 
         /* Sticky Footer for Actions */
-        .action-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card-bg); padding: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); display: none; justify-content: center; gap: 15px; border-top: 1px solid var(--border); z-index: 100; }
-        .btn { padding: 12px 24px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; background: var(--primary); color: white; min-width: 140px; }
+        .action-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card-bg); padding: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); display: none; justify-content: center; gap: 15px; border-top: 1px solid var(--border); z-index: 100; flex-wrap: wrap;}
+        .btn { padding: 12px 24px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; background: var(--primary); color: white; min-width: 130px; }
+        .btn-secondary { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border); }
         .btn-danger { background: #ef4444; color: white; }
         .btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
@@ -160,8 +161,9 @@
 </div>
 
 <div id="action-bar" class="action-bar">
-    <button id="reset-btn" class="btn btn-danger">Reset</button>
+    <button id="add-more-btn" class="btn btn-secondary">Add More</button>
     <button id="download-btn" class="btn">Download All</button>
+    <button id="reset-btn" class="btn btn-danger">Reset</button>
 </div>
 
 <div id="img-modal" class="modal" onclick="this.style.display='none'">
@@ -180,8 +182,11 @@
         if (type === 'zip') createZip(e.data);
     };
 
-    function extractSingleMhtml({ content, filename, config }) {
-        // Optimized for single file processing
+    function extractSingleMhtml({ buffer, filename, config }) {
+        // Decode ArrayBuffer to Text manually or use TextDecoder (much faster/memory efficient)
+        const decoder = new TextDecoder("utf-8");
+        const content = decoder.decode(buffer);
+        
         const extracted = [];
         
         // Find boundary
@@ -207,10 +212,9 @@
                 }
 
                 const headers = part.substring(0, bodyStart);
-                // Basic cleanup of body immediately to save temp memory
+                // Basic cleanup of body
                 const cleanBody = part.substring(bodyStart + sepLen).replace(/[\r\n\t\s]+/g, "");
                 
-                // Fast fail on size before regex/allocating
                 if (cleanBody.length * 0.75 < minSizeBytes) return;
 
                 const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
@@ -224,7 +228,6 @@
                         if (bin.length >= minSizeBytes) {
                             const bytes = new Uint8Array(bin.length);
                             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                            // Pad name for sorting
                             const name = `img_${String(idx).padStart(4,'0')}.${ext}`;
                             extracted.push({ name, data: bytes, ext });
                         }
@@ -233,17 +236,14 @@
             });
         }
         
-        // Sort and Finish
         extracted.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
         if(config.reverse) extracted.reverse();
 
         const group = extracted.length > 0 ? { groupName: filename.replace(/\.mhtml?/i, ""), images: extracted } : null;
         
-        // Send back immediately and release memory
         self.postMessage({ type: 'extractDone', group: group });
     }
 
-    // ZIP LOGIC: Unchanged but still robust
     function createZip({ groups }) {
         const crcTable = new Int32Array(256);
         for(let i=0; i<256; i++){let c=i; for(let k=0; k<8; k++) c=((c&1)?(0xEDB88320^(c>>>1)):(c>>>1)); crcTable[i]=c;}
@@ -323,6 +323,7 @@
         settingsExtract: document.getElementById('settings-extract'),
         settingsMerge: document.getElementById('settings-merge'),
         downloadBtn: document.getElementById('download-btn'),
+        addMoreBtn: document.getElementById('add-more-btn'),
         modal: document.getElementById('img-modal'),
         modalImg: document.getElementById('modal-img')
     };
@@ -356,14 +357,21 @@
 
     // --- FILES ---
     els.drop.onclick = () => els.input.click();
-    els.input.onchange = () => { if(els.input.files.length) handleFiles(els.input.files); };
+    els.addMoreBtn.onclick = () => els.input.click();
+    
+    els.input.onchange = () => { 
+        if(els.input.files.length) handleFiles(els.input.files); 
+        // Reset value so we can select same files again if needed
+        els.input.value = ''; 
+    };
 
     async function handleFiles(files) {
         els.drop.style.display = 'none';
         els.progress.style.display = 'block';
+        els.actionBar.style.display = 'none'; // Hide buttons while processing
         
-        // Reset Queue
-        processingQueue = Array.from(files); // Convert FileList to Array
+        // Use a fresh queue for this batch
+        processingQueue = Array.from(files); 
         queueIndex = 0;
         looseImagesBuffer = [];
         
@@ -372,11 +380,10 @@
     }
 
     async function processNextFile() {
-        // Check if done
         if (queueIndex >= processingQueue.length) {
-            // Handle any loose images found during the process
+            // Batch Complete
             if (looseImagesBuffer.length > 0) {
-                rawGroups.push({ groupName: "Loose Images", images: looseImagesBuffer });
+                rawGroups.push({ groupName: "Loose Images " + (rawGroups.length+1), images: looseImagesBuffer });
             }
             finishProcessing();
             return;
@@ -390,11 +397,10 @@
 
         const name = file.name.toLowerCase();
         
-        // BRANCH: MHTML (Send to Worker)
         if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
             try {
-                // Read ONE file into memory
-                const text = await file.text();
+                // MEMORY FIX: Read as ArrayBuffer and Transfer to Worker
+                const buf = await file.arrayBuffer();
                 
                 const config = {
                     minSizeKB: parseInt(document.getElementById('size-filter').value),
@@ -402,28 +408,28 @@
                     excludeGifs: document.getElementById('no-gifs').checked
                 };
                 
-                // Send ONE file to worker and wait for callback
-                worker.postMessage({ type: 'extractOne', content: text, filename: file.name, config });
-                // Note: The 'text' string is released from this scope when function exits,
-                // effectively clearing it from memory once the worker is done.
+                // Transfer buffer to worker (Zero Copy)
+                worker.postMessage({ 
+                    type: 'extractOne', 
+                    buffer: buf, 
+                    filename: file.name, 
+                    config 
+                }, [buf]); 
             } catch (err) {
                 console.error("Error reading file:", err);
                 queueIndex++;
-                processNextFile(); // Skip error
+                processNextFile(); 
             }
         } 
-        // BRANCH: Images (Keep in buffer)
         else if (name.match(/\.(jpg|jpeg|png|webp)$/)) {
             try {
                 const buf = await file.arrayBuffer();
                 looseImagesBuffer.push({ name: file.name, data: new Uint8Array(buf), ext: name.split('.').pop() });
             } catch (e) {}
-            
             queueIndex++;
-            processNextFile(); // Immediately go to next
+            processNextFile(); 
         }
         else {
-            // Unsupported file
             queueIndex++;
             processNextFile();
         }
@@ -438,12 +444,11 @@
             els.percent.innerText = Math.round(percent) + "%";
         }
         else if (type === 'extractDone') {
-            // Worker finished ONE file
             if (group) {
                 rawGroups.push(group);
             }
             queueIndex++;
-            processNextFile(); // Trigger the next one
+            processNextFile();
         }
         else if (type === 'zipDone') {
             downloadBlob(blob, filename);
@@ -457,8 +462,11 @@
     function finishProcessing() {
         els.progress.style.display = 'none';
         els.actionBar.style.display = 'flex';
+        
+        const totalImages = rawGroups.reduce((acc, g) => acc + g.images.length, 0);
         els.badge.style.display = 'inline-block';
-        els.badge.innerText = `${rawGroups.length} Chapters`;
+        els.badge.innerText = `${rawGroups.length} Files / ${totalImages} imgs`;
+        
         clearAndRender();
     }
 
@@ -499,16 +507,31 @@
                 grid.className = currentMode === 'extract' ? 'gallery-grid' : 'gallery-grid merge-mode';
                 
                 if (currentMode === 'extract') {
-                    for(let img of group.images) {
+                    // Limit preview to first 20 images to save DOM memory if chapter is huge
+                    const limit = Math.min(group.images.length, 50); 
+                    for(let i=0; i<limit; i++) {
+                        const img = group.images[i];
                         const blob = new Blob([img.data], {type: 'image/'+img.ext});
                         const url = URL.createObjectURL(blob);
                         activeUrls.push(url);
                         addToGrid(grid, url, false);
                     }
+                    if(group.images.length > 50) {
+                         const more = document.createElement('div');
+                         more.innerText = `+${group.images.length - 50} more (download to see all)`;
+                         more.style.gridColumn = "1/-1";
+                         more.style.textAlign = "center";
+                         more.style.padding = "10px";
+                         more.style.fontSize = "0.8rem";
+                         more.style.color = "var(--text-sub)";
+                         grid.appendChild(more);
+                    }
                 } else {
                     const ctx = els.canvas.getContext('2d');
                     const isRTL = document.getElementById('rtl-mode').checked;
-                    for(let i=0; i<group.images.length; i+=2) {
+                    // Limit previews for merge mode too
+                    const limit = Math.min(group.images.length, 40);
+                    for(let i=0; i<limit; i+=2) {
                         const img1 = group.images[i];
                         const img2 = group.images[i+1];
                         
