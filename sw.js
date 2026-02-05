@@ -1,32 +1,18 @@
-const CACHE_NAME = 'manga-tool-v6'; 
+const CACHE_NAME = 'manga-tool-v2';
 const ASSETS = [
     './',
     './index.html',
-    './manifest.json',
-    './worker.js',
-    './fflate.min.js'
+    './manifest.json'
 ];
 
 self.addEventListener('install', (e) => {
-    self.skipWaiting();
-    e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
-});
-
-self.addEventListener('activate', (e) => {
     e.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.map((key) => {
-                    if (key !== CACHE_NAME) return caches.delete(key);
-                })
-            );
-        })
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
     );
-    return self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
     e.respondWith(
-        caches.match(e.request).then((res) => res || fetch(e.request))
+        caches.match(e.request).then((response) => response || fetch(e.request))
     );
 });
