@@ -1,4 +1,4 @@
-const CACHE_NAME = 'manga-tool-v5'; // Incrementing version
+const CACHE_NAME = 'manga-tool-v6'; 
 const ASSETS = [
     './',
     './index.html',
