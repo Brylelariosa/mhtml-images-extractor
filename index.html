@@ -188,7 +188,7 @@
         });
     }
 
-    function extractSingleMhtml({ buffer, filename, config }) {
+        function extractSingleMhtml({ buffer, filename, config }) {
         const decoder = new TextDecoder("utf-8");
         const content = decoder.decode(buffer);
         let extracted = [];
@@ -220,15 +220,9 @@
 
                 const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
                 const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*(base64|quoted-printable)/i);
-                
-                // 1. GET SORT KEY (Use original URL)
-                const locMatch = headers.match(/Content-Location:\s*([^\r\n]+)/i);
-                let sortKey = "";
-                if (locMatch) {
-                     sortKey = locMatch[1].trim(); 
-                } else {
-                     sortKey = "ZZZ_" + String(idx).padStart(8, '0');
-                }
+
+                // FIX: Use Loop Index (idx) as sort key to keep file order
+                const sortKey = String(idx).padStart(8, '0');
 
                 if (typeMatch) {
                     const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
@@ -247,7 +241,6 @@
                             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                         }
 
-                        // Store data with sort key, name is assigned later
                         extracted.push({ sortKey, data: bytes, ext });
 
                     } catch (err) { /* Skip corrupt parts */ }
@@ -255,7 +248,7 @@
             });
         }
 
-        // 2. SORT (By URL)
+        // 2. SORT (By Index Key)
         extracted.sort((a,b) => a.sortKey.localeCompare(b.sortKey, undefined, {numeric:true}));
         if(config.reverse) extracted.reverse();
 
@@ -268,6 +261,7 @@
         const group = finalImages.length > 0 ? { groupName: filename.replace(/\.mhtml?/i, ""), images: finalImages } : null;
         self.postMessage({ type: 'extractDone', group: group });
     }
+
 
     function createZip({ groups, extType }) {
         const crcTable = new Int32Array(256);
