@@ -188,11 +188,11 @@
         });
     }
 
-    function extractSingleMhtml({ buffer, filename, config }) {
+        function extractSingleMhtml({ buffer, filename, config }) {
         const decoder = new TextDecoder("utf-8");
         const content = decoder.decode(buffer);
         const extracted = [];
-        
+
         let boundary = null;
         const bMatch = content.match(/boundary="?([^";\s]+)"?/i);
         if (bMatch) boundary = bMatch[1];
@@ -214,12 +214,15 @@
                 }
 
                 const headers = part.substring(0, bodyStart);
-                let cleanBody = part.substring(bodyStart + sepLen).replace(/[\r\n]+$/, ""); // Trim trailing
+                let cleanBody = part.substring(bodyStart + sepLen).replace(/[\r\n]+$/, ""); 
 
                 if (cleanBody.length * 0.75 < minSizeBytes) return;
 
                 const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
                 const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*(base64|quoted-printable)/i);
+                
+                // NEW: specific regex to find the original URL
+                const locMatch = headers.match(/Content-Location:\s*([^\r\n]+)/i);
 
                 if (typeMatch) {
                     const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
@@ -227,32 +230,51 @@
 
                     try {
                         let bytes;
-                        // Handle Quoted-Printable (Common in some MHTML saves)
                         if (encodingMatch && encodingMatch[1].toLowerCase() === 'quoted-printable') {
                             cleanBody = decodeQuotedPrintable(cleanBody);
                             const bin = cleanBody.split('').map(c => c.charCodeAt(0));
                             bytes = new Uint8Array(bin);
                         } else {
-                            // Default Base64
                             const bin = atob(cleanBody.replace(/[\r\n\t\s]+/g, ""));
                             if (bin.length < minSizeBytes) return;
                             bytes = new Uint8Array(bin.length);
                             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                         }
 
-                        const name = `img_${String(idx).padStart(4,'0')}.${ext}`;
+                        // NEW: Naming Logic
+                        let name;
+                        if (locMatch) {
+                            // extracting filename from URL (e.g. "http://site.com/001.jpg" -> "001.jpg")
+                            const urlParts = locMatch[1].trim().split('/');
+                            let origName = urlParts[urlParts.length - 1];
+                            // Remove query params if any (?v=123)
+                            origName = origName.split('?')[0];
+                            // Ensure it has an extension, if not, add one
+                            if (!origName.toLowerCase().endsWith('.' + ext)) {
+                                origName += '.' + ext;
+                            }
+                            // Prepend index as fallback tie-breaker, but rely on origName for sort
+                            name = origName;
+                        } else {
+                            // Fallback if no content-location
+                            name = `img_${String(idx).padStart(4,'0')}.${ext}`;
+                        }
+
                         extracted.push({ name, data: bytes, ext });
                     } catch (err) { /* Skip corrupt parts */ }
                 }
             });
         }
 
-        extracted.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+        // Updated Sort: Numeric sort handles "1.jpg" vs "10.jpg" correctly
+        extracted.sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity: 'base'}));
+        
         if(config.reverse) extracted.reverse();
 
         const group = extracted.length > 0 ? { groupName: filename.replace(/\.mhtml?/i, ""), images: extracted } : null;
         self.postMessage({ type: 'extractDone', group: group });
     }
+
 
     function createZip({ groups, extType }) {
         const crcTable = new Int32Array(256);
@@ -271,7 +293,7 @@
             // Sanitize folder name
             const cleanGroupName = group.groupName.replace(/[\\/:*?"<>|]/g, "_");
             const folderName = cleanGroupName + "/";
-            
+
             for(const img of group.images) {
                 processed++;
                 if(processed % 10 === 0) {
@@ -487,10 +509,10 @@
             const head = document.createElement('div');
             head.className = 'chapter-head';
             head.innerHTML = `<span>${group.groupName}</span> <span style="font-size:0.8em; color:var(--text-sub)">${group.images.length} images</span>`;
-            
+
             const body = document.createElement('div');
             body.className = 'chapter-body';
-            
+
             // Add Remove button
             const removeBtn = document.createElement('span');
             removeBtn.innerHTML = " &times;";
@@ -516,7 +538,7 @@
             container.innerHTML = ''; 
             return;
         }
-        
+
         container.classList.add('expanded');
         container.innerHTML = '<div style="padding:10px; text-align:center">Generating previews...</div>';
 
@@ -529,10 +551,10 @@
 
         // In merge mode, pair images. In extract, single.
         const items = currentMode === 'extract' ? group.images : pairImages(group.images);
-        
+
         // Limit preview to avoid freezing DOM
         const limit = Math.min(items.length, 30);
-        
+
         for(let i=0; i<limit; i++) {
             let url;
             if(currentMode === 'extract') {
@@ -582,7 +604,7 @@
             els.canvas.height = Math.max(b1.height, b2.height);
             // Fill background white
             ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-            
+
             if(isRTL) {
                 ctx.drawImage(b2, 0, 0);
                 ctx.drawImage(b1, b2.width, 0);
@@ -591,7 +613,7 @@
                 ctx.drawImage(b2, b1.width, 0);
             }
         }
-        
+
         return new Promise(r => els.canvas.toBlob(blob => r(URL.createObjectURL(blob)), 'image/jpeg', 0.85));
     }
 
@@ -606,11 +628,11 @@
     // --- DOWNLOAD LOGIC ---
     els.downloadBtn.onclick = async () => {
         if(!rawGroups.length) return;
-        
+
         els.downloadBtn.disabled = true;
         els.downloadBtn.innerText = "Processing...";
         els.progress.style.display = 'block';
-        
+
         let finalGroups = rawGroups;
 
         // IF MERGE MODE: We must generate the merged images NOW before zipping
@@ -618,30 +640,30 @@
             updateProgress("Merging images for export...", 0);
             finalGroups = [];
             const isRTL = document.getElementById('rtl-mode').checked;
-            
+
             for(let i=0; i<rawGroups.length; i++) {
                 const g = rawGroups[i];
                 const pairs = pairImages(g.images);
                 const mergedImages = [];
-                
+
                 for(let j=0; j<pairs.length; j++) {
                     // Update progress occasionally
                     if(j%5===0) updateProgress(`Merging ${g.groupName} (${j}/${pairs.length})`, (i/rawGroups.length)*100);
-                    
+
                     const url = await createMergedUrl(pairs[j], isRTL);
                     const res = await fetch(url);
                     const blob = await res.blob();
                     const buf = await blob.arrayBuffer();
-                    
+
                     mergedImages.push({
                         name: `page_${String(j).padStart(4,'0')}.jpg`,
                         data: new Uint8Array(buf),
                         ext: 'jpg'
                     });
-                    
+
                     URL.revokeObjectURL(url); // Cleanup immediately
                 }
-                
+
                 finalGroups.push({ groupName: g.groupName, images: mergedImages });
             }
         }
