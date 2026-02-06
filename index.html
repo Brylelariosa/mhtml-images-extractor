@@ -188,7 +188,7 @@
         });
     }
 
-        function extractSingleMhtml({ buffer, filename, config }) {
+            function extractSingleMhtml({ buffer, filename, config }) {
         const decoder = new TextDecoder("utf-8");
         const content = decoder.decode(buffer);
         let extracted = [];
@@ -221,7 +221,7 @@
                 const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
                 const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*(base64|quoted-printable)/i);
 
-                // FIX: Use Loop Index (idx) as sort key to keep file order
+                // Sort Key: File Order (idx)
                 const sortKey = String(idx).padStart(8, '0');
 
                 if (typeMatch) {
@@ -248,19 +248,35 @@
             });
         }
 
-        // 2. SORT (By Index Key)
         extracted.sort((a,b) => a.sortKey.localeCompare(b.sortKey, undefined, {numeric:true}));
         if(config.reverse) extracted.reverse();
 
-        // 3. RENAME SEQUENTIALLY (001.webp, 002.webp...)
         const finalImages = extracted.map((item, i) => {
             const newName = `${String(i+1).padStart(3, '0')}.${item.ext}`;
             return { name: newName, data: item.data, ext: item.ext };
         });
 
-        const group = finalImages.length > 0 ? { groupName: filename.replace(/\.mhtml?/i, ""), images: finalImages } : null;
+        // --- NEW FEATURE: SMART FOLDER RENAMING ---
+        let baseName = filename.replace(/\.mhtml?/i, "");
+        
+        // Regex: Finds "Chapter X" or "Vol X" in the middle and moves it to the start
+        // Captures: 1=(Title before) 2=(Chapter X) 3=(Text after)
+        const nameMatch = baseName.match(/^(.*?)(\b(?:chapter|ch\.?|vol\.?|volume)\s*[\d\.]+)(.*)$/i);
+        
+        if (nameMatch) {
+            const title = nameMatch[1].trim();
+            const chapter = nameMatch[2].trim();
+            const rest = nameMatch[3].trim();
+            
+            // Reassemble: "Chapter 14 [Title] [Rest]"
+            baseName = `${chapter} ${title} ${rest}`.replace(/\s+/g, ' ').trim();
+        }
+        // -------------------------------------------
+
+        const group = finalImages.length > 0 ? { groupName: baseName, images: finalImages } : null;
         self.postMessage({ type: 'extractDone', group: group });
     }
+
 
 
     function createZip({ groups, extType }) {
