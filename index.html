@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="Manga Extractor & Merger Tool">
+    <title>Manga Tool Ultimate</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <div class="header-row">
+            <div style="display:flex; align-items:center">
+                <h1>Manga Tool</h1>
+                <span id="img-count-badge" class="count-badge">0</span>
+            </div>
+            <button id="theme-toggle" class="mode-tab" style="flex:0; padding: 8px 12px;">🌙</button>
+        </div>
+
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tab-extract" onclick="setMode('extract')">Extract</button>
+            <button class="mode-tab" id="tab-merge" onclick="setMode('merge')">Merger</button>
+        </div>
+
+        <div class="controls-wrapper">
+            <div id="settings-extract" class="control-panel">
+                <span class="control-label">Extraction Filters</span>
+                <div class="range-row">
+                    <span>Min Size:</span>
+                    <input type="range" id="size-filter" min="0" max="200" value="40" step="5" onchange="triggerRefilter()">
+                    <span id="size-val">40 KB</span>
+                </div>
+                <div class="toggle-row" style="margin-top:10px">
+                    <span>Exclude GIFs</span>
+                    <label class="switch"><input type="checkbox" id="no-gifs" checked onchange="triggerRefilter()"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row" style="margin-top:10px; border-top: 1px solid var(--border); padding-top: 10px;">
+                    <span>Reverse Order</span>
+                    <label class="switch"><input type="checkbox" id="reverse-sort" onchange="triggerRefilter()"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div id="settings-merge" class="control-panel hidden">
+                <span class="control-label">Merger Settings</span>
+                <div class="toggle-row">
+                    <span>Manga Direction (RTL)</span>
+                    <label class="switch"><input type="checkbox" id="rtl-mode" onchange="triggerRefilter()"><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+
+        <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" accept=".mhtml,.mht,.jpg,.jpeg,.png,.webp" multiple style="display:none">
+            <span style="font-size: 2rem;">📂</span>
+            <div class="drop-title"><b>Click to upload</b> MHTML or Images</div>
+            <div style="font-size: 0.8rem; color: var(--text-sub); margin-top: 10px;">
+                Drag & Drop supported (Unlimited Files)
+            </div>
+        </div>
+
+        <div id="progress-area" class="progress-container">
+            <div class="progress-info">
+                <span id="status-text">Processing...</span>
+                <span id="percent-text">0%</span>
+            </div>
+            <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
+        </div>
+
+        <div id="chapter-list" class="chapter-list"></div>
+    </div>
+</div>
+
+<div id="action-bar" class="action-bar">
+    <button id="add-more-btn" class="btn btn-secondary">Add More</button>
+    <button id="download-btn" class="btn">Download All</button>
+    <button id="reset-btn" class="btn btn-danger">Reset</button>
+</div>
+
+<div id="img-modal" class="modal" onclick="this.style.display='none'">
+    <div class="close-modal">&times;</div>
+    <div class="modal-content">
+        <img id="modal-img" src="">
+    </div>
+</div>
+
+<canvas id="merge-canvas" style="display:none;"></canvas>
+
+<script src="script.js"></script>
+</body>
+</html>
