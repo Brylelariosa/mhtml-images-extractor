@@ -130,4 +130,4 @@ input:checked + .slider:before { transform: translateX(16px); }
     background: rgba(239, 68, 68, 0.95); color: white;
     font-size: 0.65rem; font-weight: bold; text-align: center;
     padding: 3px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-             }
+               }
