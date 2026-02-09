@@ -44,7 +44,7 @@ const els = {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 function init() {
-    // FORCE UPDATE: Add timestamp to prevent caching old worker code
+    // FORCE UPDATE: Add timestamp (Date.now()) to prevent using cached old worker
     worker = new Worker('worker.js?v=' + Date.now());
     worker.onmessage = handleWorkerMsg;
     worker.onerror = (e) => {
