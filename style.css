@@ -1,4 +1,4 @@
-:root { --primary: #4f46e5; --bg-color: #f8fafc; --card-bg: #ffffff; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0; --panel-bg: #f1f5f9; --drop-bg: #f8fafc; --drop-border: #cbd5e1; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); --modal-bg: rgba(255, 255, 255, 0.98); --danger: #ef4444; --warning-bg: #fff7ed; --warning-text: #c2410c; }
+:root { --primary: #4f46e5; --bg-color: #f8fafc; --card-bg: #ffffff; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0; --panel-bg: #f1f5f9; --drop-bg: #f8fafc; --drop-border: #cbd5e1; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); --modal-bg: rgba(255, 255, 255, 0.98); --danger: #ef4444; --warning-bg: #fff7ed; --warning-text: #c2410c; --success: #22c55e; }
 [data-theme="dark"] { --primary: #6366f1; --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-sub: #94a3b8; --border: #334155; --panel-bg: #0f172a; --drop-bg: #1e293b; --drop-border: #475569; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); --modal-bg: rgba(15, 23, 42, 0.98); --warning-bg: #431407; --warning-text: #fdba74; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -99,13 +99,19 @@ input:checked + .slider:before { transform: translateX(16px); }
 }
 .filtered-item {
     position: relative; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden;
-    background: var(--card-bg); border: 2px solid var(--danger); cursor: help;
+    background: var(--card-bg); border: 2px solid var(--danger); cursor: pointer; /* Change to pointer */
 }
-.filtered-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; transition: 0.2s; }
+.filtered-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; transition: 0.2s; }
+
+/* Hover effects to show it's restorable */
+.filtered-item:hover { border-color: var(--success); }
 .filtered-item:hover img { opacity: 1; }
+.filtered-item:hover .filter-reason { background: var(--success); content: "Restore"; }
+
 .filter-reason {
     position: absolute; bottom: 0; left: 0; right: 0;
     background: rgba(239, 68, 68, 0.95); color: white;
     font-size: 0.65rem; font-weight: bold; text-align: center;
     padding: 3px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: 0.2s;
 }
