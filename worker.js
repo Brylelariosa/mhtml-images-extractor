@@ -75,11 +75,11 @@ function extractSingleMhtml({ buffer, filename }) {
             size: item.size 
         }));
 
-        // 3. SMART RENAME (FIXED: Always put Chapter First)
+        // 3. SMART RENAME (MOVES NUMBERS TO FRONT)
         let baseName = filename.replace(/\.mhtml?/i, "").trim();
         
-        // Regex to find "Chapter X", "Ch. X", "Vol X", or just a trailing number " 04"
-        // Groups: 1=Prefix, 2=ChapterPart, 3=Suffix
+        // This Regex looks for "Chapter X", "Vol X", or just a number at the end
+        // Capture Groups: [1] Title Prefix, [2] Number Part, [3] Suffix
         const nameMatch = baseName.match(/^(.*?)(\b(?:chapter|ch\.?|no\.?|c\.|vol\.?|volume)\s*[\d\.]+|\b\d+$)(.*)$/i);
         
         if (nameMatch) {
@@ -87,14 +87,19 @@ function extractSingleMhtml({ buffer, filename }) {
             const numberPart = nameMatch[2].trim();
             const suffix = nameMatch[3].trim();
             
-            // Reconstruct: "Chapter 10 - Manga Title"
-            // We strip standard separators like " - " to avoid double hyphens
+            // Clean up trailing hyphens from the prefix (e.g. "Naruto - ")
             const cleanPrefix = prefix.replace(/[-_]$/, "").trim();
-            baseName = `${numberPart} - ${cleanPrefix} ${suffix}`.trim();
+            
+            // Reconstruct: "Chapter 10 - Naruto"
+            if(cleanPrefix) {
+                baseName = `${numberPart} - ${cleanPrefix} ${suffix}`.trim();
+            } else {
+                baseName = `${numberPart} ${suffix}`.trim();
+            }
         }
 
-        // Clean up double spaces or trailing hyphens
-        baseName = baseName.replace(/\s+/g, ' ').replace(/-\s*$/, "").trim();
+        // Final cleanup of double spaces
+        baseName = baseName.replace(/\s+/g, ' ').trim();
 
         const group = finalImages.length > 0 ? { groupName: baseName, allImages: finalImages } : null;
         self.postMessage({ type: 'extractDone', group: group });
@@ -104,7 +109,7 @@ function extractSingleMhtml({ buffer, filename }) {
     }
 }
 
-// 4. ASYNC ZIP CREATION (FIXED: Reduces Lag)
+// 4. ASYNC ZIP CREATION (ANTI-LAG VERSION)
 async function createZip({ groups, extType }) {
     try {
         const crcTable = new Int32Array(256);
@@ -122,17 +127,16 @@ async function createZip({ groups, extType }) {
         if (totalFiles === 0) throw new Error("No images to zip");
 
         for(const group of groups) {
-            // Sanitize folder name
             const cleanGroupName = group.groupName.replace(/[\\/:*?"<>|]/g, "_");
             const folderName = cleanGroupName + "/";
 
             for(const img of group.images) {
                 processed++;
 
-                // ANTI-LAG: Yield to the browser every 20 files
+                // ANTI-LAG: Pause every 20 files to let UI breathe
                 if(processed % 20 === 0) {
                      self.postMessage({ type: 'status', text: "Compressing...", percent: (processed/totalFiles)*100 });
-                     await new Promise(r => setTimeout(r, 5)); // Sleep 5ms
+                     await new Promise(r => setTimeout(r, 5)); // 5ms pause
                 }
 
                 const path = folderName + img.name;
@@ -168,4 +172,4 @@ async function createZip({ groups, extType }) {
     } catch(err) {
         self.postMessage({ type: 'error', text: err.message });
     }
-            }
+    }
