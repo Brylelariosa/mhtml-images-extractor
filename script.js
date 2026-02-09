@@ -44,7 +44,7 @@ const els = {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 function init() {
-    // FORCE UPDATE: Add timestamp (Date.now()) to prevent using cached old worker
+    // FORCE UPDATE: Add timestamp to prevent using cached old worker
     worker = new Worker('worker.js?v=' + Date.now());
     worker.onmessage = handleWorkerMsg;
     worker.onerror = (e) => {
@@ -139,7 +139,6 @@ async function processNextFile() {
     if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
         try {
             const buf = await file.arrayBuffer();
-            // Use Transferable to save RAM
             worker.postMessage({ 
                 type: 'extractOne', 
                 buffer: buf, 
@@ -181,7 +180,6 @@ function handleWorkerMsg(e) {
         els.downloadBtn.innerText = "Complete! (Reload to start over)";
         updateProgress("Download Ready", 100);
         
-        // Data is now gone from main thread
         dataTransferred = true;
         document.querySelectorAll('.chapter-item').forEach(el => el.style.opacity = '0.5');
     }
@@ -367,35 +365,32 @@ function pairImages(images) {
     return pairs;
 }
 
+// --- UPDATED MERGE FUNCTION (Horizontal Only) ---
 async function createMergedUrl(pair, isRTL) {
-    const isVertical = document.querySelector('input[name="merge-mode"]:checked').value === 'vertical';
     const ctx = els.canvas.getContext('2d');
     const b1 = await createImageBitmap(new Blob([pair[0].data]));
     let b2 = null;
     if(pair[1]) b2 = await createImageBitmap(new Blob([pair[1].data]));
 
     if(!b2) {
+        // Single page
         els.canvas.width = b1.width;
         els.canvas.height = b1.height;
         ctx.drawImage(b1, 0, 0);
     } else {
-        if (isVertical) {
-            els.canvas.width = Math.max(b1.width, b2.width);
-            els.canvas.height = b1.height + b2.height;
-            ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-            ctx.drawImage(b1, (els.canvas.width - b1.width)/2, 0);
-            ctx.drawImage(b2, (els.canvas.width - b2.width)/2, b1.height);
+        // Side-by-side merge
+        els.canvas.width = b1.width + b2.width;
+        els.canvas.height = Math.max(b1.height, b2.height);
+        
+        ctx.fillStyle="#fff"; 
+        ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
+
+        if(isRTL) {
+            ctx.drawImage(b2, 0, 0);
+            ctx.drawImage(b1, b2.width, 0);
         } else {
-            els.canvas.width = b1.width + b2.width;
-            els.canvas.height = Math.max(b1.height, b2.height);
-            ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-            if(isRTL) {
-                ctx.drawImage(b2, 0, 0);
-                ctx.drawImage(b1, b2.width, 0);
-            } else {
-                ctx.drawImage(b1, 0, 0);
-                ctx.drawImage(b2, b1.width, 0);
-            }
+            ctx.drawImage(b1, 0, 0);
+            ctx.drawImage(b2, b1.width, 0);
         }
     }
     return new Promise(r => els.canvas.toBlob(blob => r(URL.createObjectURL(blob)), 'image/jpeg', 0.85));
@@ -441,7 +436,7 @@ if(els.modalRestoreBtn) {
 document.querySelector('.close-modal').onclick = () => els.modal.style.display = 'none';
 els.modal.onclick = (e) => { if(e.target === els.modal) els.modal.style.display = 'none'; };
 
-// --- DOWNLOAD (Uses Transferables + Checks Mode) ---
+// --- DOWNLOAD ---
 els.downloadBtn.onclick = async () => {
     if(!rawGroups.length || dataTransferred) return;
 
@@ -453,7 +448,6 @@ els.downloadBtn.onclick = async () => {
     const transferBuffers = [];
 
     if(currentMode === 'merge') {
-        // Merge mode creates NEW images, so we don't transfer original buffers
         updateProgress("Merging images for export...", 0);
         const isRTL = document.getElementById('rtl-mode').checked;
 
@@ -481,9 +475,7 @@ els.downloadBtn.onclick = async () => {
             finalGroups.push({ groupName: g.groupName, images: mergedImages });
         }
     } else {
-        // Extract Mode: Transfer Buffers directly
         updateProgress("Preparing data transfer...", 90);
-        
         finalGroups = rawGroups.map(g => ({
             groupName: g.groupName,
             images: g.displayImages.map(img => {
