@@ -75,24 +75,28 @@ function extractSingleMhtml({ buffer, filename }) {
             size: item.size 
         }));
 
-        // 3. SMART RENAME (FIXED: Handles Underscores)
+        // --- 3. SMART RENAME LOGIC (Improved) ---
         let baseName = filename.replace(/\.mhtml?/i, "");
-        
-        // FIX: Replace underscores with spaces so "Title_chapter_1" becomes "Title chapter 1"
-        baseName = baseName.replace(/_/g, " ").trim();
-        
-        // Regex to find "Chapter X" or just a number at the end
-        const nameMatch = baseName.match(/^(.*?)(\b(?:chapter|ch\.?|no\.?|c\.|vol\.?|volume)\s*[\d\.]+|\b\d+\s*$)(.*)$/i);
+
+        // A. Clean up the filename BEFORE matching
+        baseName = baseName.replace(/_/g, " "); // Turn underscores to spaces
+        baseName = baseName.replace(/\+/g, " "); // Turn plus to spaces
+        baseName = baseName.replace(/\[.*?\]|\(.*?\)/g, ""); // Remove [ScanGroup] or (Year) tags
+        baseName = baseName.replace(/\b(read manga online|read online|manga)\b/gi, ""); // Remove spam words
+        baseName = baseName.replace(/\s+/g, " ").trim(); // Remove double spaces
+
+        // B. Regex to find "Chapter X" or just a number
+        // Matches: "Chapter 1", "Ch.1", "Vol 1", "c1", "No.1", or just " 01"
+        const nameMatch = baseName.match(/^(.*?)(\b(?:chapter|ch\.?|no\.?|c\.?|vol\.?|volume|#)\s*[\d\.]+|\b\d+)(.*)$/i);
         
         if (nameMatch) {
             const prefix = nameMatch[1].trim();
-            const numberPart = nameMatch[2].trim();
+            const numberPart = nameMatch[2].trim(); // The "Chapter 1" part
             const suffix = nameMatch[3].trim();
             
-            // Clean prefix (remove trailing hyphens)
-            const cleanPrefix = prefix.replace(/[-_]$/, "").trim();
+            const cleanPrefix = prefix.replace(/[-_]$/, "").trim(); // Remove trailing hyphens
             
-            // Reconstruct: "Chapter 1 - Manga Title"
+            // Put Number FIRST: "Chapter 1 - Title"
             if(cleanPrefix) {
                 baseName = `${numberPart} - ${cleanPrefix} ${suffix}`.trim();
             } else {
@@ -100,8 +104,8 @@ function extractSingleMhtml({ buffer, filename }) {
             }
         }
 
-        // Clean up double spaces/hyphens
-        baseName = baseName.replace(/\s+/g, ' ').replace(/-\s*$/, "").trim();
+        // Final cleanup of any double hyphens created
+        baseName = baseName.replace(/\s+-\s*$/, "").replace(/\s+/g, " ").trim();
 
         const group = finalImages.length > 0 ? { groupName: baseName, allImages: finalImages } : null;
         self.postMessage({ type: 'extractDone', group: group });
@@ -111,6 +115,7 @@ function extractSingleMhtml({ buffer, filename }) {
     }
 }
 
+// 4. ASYNC ZIP CREATION (ANTI-LAG)
 async function createZip({ groups, extType }) {
     try {
         const crcTable = new Int32Array(256);
@@ -134,7 +139,7 @@ async function createZip({ groups, extType }) {
             for(const img of group.images) {
                 processed++;
 
-                // ANTI-LAG: Yield every 20 files
+                // Pause every 20 files to stop lag
                 if(processed % 20 === 0) {
                      self.postMessage({ type: 'status', text: "Compressing...", percent: (processed/totalFiles)*100 });
                      await new Promise(r => setTimeout(r, 5)); 
@@ -173,4 +178,4 @@ async function createZip({ groups, extType }) {
     } catch(err) {
         self.postMessage({ type: 'error', text: err.message });
     }
-            }
+    }
