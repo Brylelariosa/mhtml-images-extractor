@@ -47,7 +47,19 @@
 
             <div id="settings-merge" class="control-panel hidden">
                 <span class="control-label">Merger Settings</span>
-                <div class="toggle-row">
+                
+                <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:10px; font-size:0.9rem; font-weight:600;">
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                        <input type="radio" name="merge-mode" value="normal" checked onchange="triggerRefilter()"> 
+                        Standard
+                    </label>
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                        <input type="radio" name="merge-mode" value="vertical" onchange="triggerRefilter()"> 
+                        Webtoon (Vertical)
+                    </label>
+                </div>
+
+                <div class="toggle-row" id="rtl-container">
                     <span>Manga Direction (RTL)</span>
                     <label class="switch"><input type="checkbox" id="rtl-mode" onchange="triggerRefilter()"><span class="slider"></span></label>
                 </div>
@@ -81,10 +93,17 @@
     <button id="reset-btn" class="btn btn-danger">Reset</button>
 </div>
 
-<div id="img-modal" class="modal" onclick="this.style.display='none'">
+<div id="img-modal" class="modal">
     <div class="close-modal">&times;</div>
     <div class="modal-content">
         <img id="modal-img" src="">
+        
+        <div id="modal-actions" class="modal-actions" style="display:none">
+            <div id="modal-reason" style="margin-bottom:5px; font-size:0.8rem; opacity:0.9; font-weight:600"></div>
+            <button id="modal-restore-btn" class="btn-sm" style="background:var(--success); color:white; border:none; padding:8px 16px; font-size:0.9rem;">
+                ♻️ Restore Image
+            </button>
+        </div>
     </div>
 </div>
 
@@ -93,4 +112,4 @@
 <script src="script.js" defer></script>
 
 </body>
-</html>
+                    </html>
