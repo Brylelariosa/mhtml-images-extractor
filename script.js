@@ -6,9 +6,9 @@ let worker = null;
 let processingQueue = [];
 let queueIndex = 0;
 let looseImagesBuffer = [];
-let dataTransferred = false; // Prevents errors after download
+let dataTransferred = false;
 
-// Track current modal context
+// Modal State
 let currentModalImage = null; 
 let currentModalGroup = null;
 
@@ -28,7 +28,7 @@ const els = {
     downloadBtn: document.getElementById('download-btn'),
     addMoreBtn: document.getElementById('add-more-btn'),
     
-    // Modal Elements
+    // Modal
     modal: document.getElementById('img-modal'),
     modalImg: document.getElementById('modal-img'),
     modalActions: document.getElementById('modal-actions'),
@@ -49,7 +49,6 @@ function init() {
     worker.onerror = (e) => {
         alert("Worker Error: " + e.message);
         els.downloadBtn.disabled = false;
-        els.downloadBtn.innerText = "Download All";
         els.progress.style.display = 'none';
     };
     loadConfig();
@@ -78,7 +77,7 @@ window.saveConfig = function() {
 };
 
 window.triggerRefilter = function() {
-    if(dataTransferred) return; // Cannot filter after download
+    if(dataTransferred) return;
     saveConfig();
     applyFiltersToAll();
     clearAndRender();
@@ -139,7 +138,7 @@ async function processNextFile() {
     if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
         try {
             const buf = await file.arrayBuffer();
-            // Use transfer list for MHTML buffer too to save RAM
+            // Use Transferable to save RAM
             worker.postMessage({ 
                 type: 'extractOne', 
                 buffer: buf, 
@@ -167,6 +166,7 @@ function handleWorkerMsg(e) {
     else if(type === 'error') {
         alert("Worker Error: " + text);
         els.downloadBtn.disabled = false;
+        els.downloadBtn.innerText = "Download All";
         els.progress.style.display = 'none';
     }
     else if (type === 'extractDone') {
@@ -180,7 +180,7 @@ function handleWorkerMsg(e) {
         els.downloadBtn.innerText = "Complete! (Reload to start over)";
         updateProgress("Download Ready", 100);
         
-        // Disable interactions as data is gone
+        // Data is now gone from main thread
         dataTransferred = true;
         document.querySelectorAll('.chapter-item').forEach(el => el.style.opacity = '0.5');
     }
@@ -440,7 +440,7 @@ if(els.modalRestoreBtn) {
 document.querySelector('.close-modal').onclick = () => els.modal.style.display = 'none';
 els.modal.onclick = (e) => { if(e.target === els.modal) els.modal.style.display = 'none'; };
 
-// --- DOWNLOAD (FIXED: USES TRANSFERABLES) ---
+// --- DOWNLOAD (Uses Transferables + Checks Mode) ---
 els.downloadBtn.onclick = async () => {
     if(!rawGroups.length || dataTransferred) return;
 
@@ -452,8 +452,7 @@ els.downloadBtn.onclick = async () => {
     const transferBuffers = [];
 
     if(currentMode === 'merge') {
-        // Merge mode creates new data, so we don't transfer original buffers
-        // We just clone/create new ones.
+        // Merge mode creates NEW images, so we don't transfer original buffers
         updateProgress("Merging images for export...", 0);
         const isRTL = document.getElementById('rtl-mode').checked;
 
@@ -469,10 +468,8 @@ els.downloadBtn.onclick = async () => {
                 const res = await fetch(url);
                 const blob = await res.blob();
                 const buf = await blob.arrayBuffer();
-
-                // Add buffer to transfer list
-                transferBuffers.push(buf);
                 
+                transferBuffers.push(buf);
                 mergedImages.push({
                     name: `page_${String(j).padStart(4,'0')}.jpg`,
                     data: new Uint8Array(buf),
@@ -483,20 +480,16 @@ els.downloadBtn.onclick = async () => {
             finalGroups.push({ groupName: g.groupName, images: mergedImages });
         }
     } else {
-        // Extract Mode: CRITICAL FIX - Use Transferables
-        // We pull the buffers out of the Uint8Arrays
+        // Extract Mode: Transfer Buffers directly
         updateProgress("Preparing data transfer...", 90);
         
         finalGroups = rawGroups.map(g => ({
             groupName: g.groupName,
             images: g.displayImages.map(img => {
-                // We must use the underlying buffer
-                if(img.data.buffer) {
-                    transferBuffers.push(img.data.buffer);
-                }
+                if(img.data.buffer) transferBuffers.push(img.data.buffer);
                 return {
                     name: img.name,
-                    data: img.data, // This Uint8Array points to the buffer we are transferring
+                    data: img.data,
                     ext: img.ext
                 };
             })
@@ -504,8 +497,6 @@ els.downloadBtn.onclick = async () => {
     }
 
     updateProgress("Sending to Worker...", 95);
-    
-    // THE FIX: Pass transferBuffers as the second argument
     worker.postMessage(
         { type: 'zip', groups: finalGroups, extType: 'cbz' }, 
         transferBuffers
