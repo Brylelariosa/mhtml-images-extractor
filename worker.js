@@ -35,7 +35,6 @@ function extractSingleMhtml({ buffer, filename }) {
         let extracted = [];
 
         // 1. BOUNDARY DETECTION (Scan only the first 4KB to save memory)
-        // We only decode the start of the file to find the boundary string.
         const headerText = decoder.decode(data.slice(0, 4096));
         let boundaryString = null;
         
@@ -96,7 +95,6 @@ function extractSingleMhtml({ buffer, filename }) {
                         if (encodingMatch) {
                             const enc = encodingMatch[1].toLowerCase();
                             if (enc === 'base64') {
-                                // Clean newlines from base64 string then decode
                                 const b64Str = decoder.decode(rawBody).replace(/[\r\n\t\s]+/g, "");
                                 const bin = atob(b64Str);
                                 finalBytes = new Uint8Array(bin.length);
@@ -111,8 +109,6 @@ function extractSingleMhtml({ buffer, filename }) {
                         
                         // If no encoding (binary), use raw bytes directly
                         if (!finalBytes) {
-                             // Some MHTML saves images as raw binary. 
-                             // We copy it to ensure it's a clean view.
                              finalBytes = rawBody.slice(); 
                         }
 
@@ -133,7 +129,11 @@ function extractSingleMhtml({ buffer, filename }) {
             currentIndex = boundaryIndex + boundaryBytes.length;
         }
 
-        extracted.sort((a,b) => a.sortKey.localeCompare(b.sortKey, undefined, {numeric:true}));
+        // --- 3. SMART NATURAL SORTING ---
+        // Uses "numeric" mode so "Page 10" comes after "Page 2"
+        extracted.sort((a, b) => {
+            return a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true, sensitivity: 'base' });
+        });
 
         const finalImages = extracted.map((item, i) => ({ 
             originalIdx: i,
@@ -142,7 +142,7 @@ function extractSingleMhtml({ buffer, filename }) {
             size: item.size 
         }));
 
-        // --- 3. SMART RENAME LOGIC ---
+        // --- 4. SMART RENAME LOGIC ---
         let baseName = filename.replace(/\.mhtml?/i, "");
         baseName = baseName.replace(/_/g, " "); 
         baseName = baseName.replace(/\+/g, " "); 
@@ -176,7 +176,7 @@ function extractSingleMhtml({ buffer, filename }) {
     }
 }
 
-// 4. ASYNC ZIP CREATION
+// 5. ASYNC ZIP CREATION
 async function createZip({ groups, extType }) {
     try {
         const crcTable = new Int32Array(256);
@@ -238,4 +238,4 @@ async function createZip({ groups, extType }) {
     } catch(err) {
         self.postMessage({ type: 'error', text: err.message });
     }
-                            }
+                                    }
