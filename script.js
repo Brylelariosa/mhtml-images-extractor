@@ -6,6 +6,7 @@ let worker = null;
 let processingQueue = [];
 let queueIndex = 0;
 let looseImagesBuffer = [];
+let dataTransferred = false; // Prevents errors after download
 
 // Track current modal context
 let currentModalImage = null; 
@@ -45,6 +46,12 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 function init() {
     worker = new Worker('worker.js');
     worker.onmessage = handleWorkerMsg;
+    worker.onerror = (e) => {
+        alert("Worker Error: " + e.message);
+        els.downloadBtn.disabled = false;
+        els.downloadBtn.innerText = "Download All";
+        els.progress.style.display = 'none';
+    };
     loadConfig();
 }
 
@@ -71,6 +78,7 @@ window.saveConfig = function() {
 };
 
 window.triggerRefilter = function() {
+    if(dataTransferred) return; // Cannot filter after download
     saveConfig();
     applyFiltersToAll();
     clearAndRender();
@@ -82,7 +90,7 @@ function updateSizeLabel() {
 
 // --- FILE HANDLING ---
 els.drop.onclick = () => els.input.click();
-els.addMoreBtn.onclick = () => els.input.click();
+els.addMoreBtn.onclick = () => { if(!dataTransferred) els.input.click(); };
 els.input.onchange = () => { 
     if(els.input.files.length) handleFiles(els.input.files); 
     els.input.value = ''; 
@@ -97,6 +105,10 @@ els.drop.ondrop = (e) => {
 };
 
 async function handleFiles(files) {
+    if(dataTransferred) {
+        if(confirm("Downloading cleared the memory. Reload to process new files?")) location.reload();
+        return;
+    }
     els.drop.style.display = 'none';
     els.progress.style.display = 'block';
     els.actionBar.style.display = 'none';
@@ -127,6 +139,7 @@ async function processNextFile() {
     if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
         try {
             const buf = await file.arrayBuffer();
+            // Use transfer list for MHTML buffer too to save RAM
             worker.postMessage({ 
                 type: 'extractOne', 
                 buffer: buf, 
@@ -151,6 +164,11 @@ function handleWorkerMsg(e) {
     if(type === 'status') {
         updateProgress(text, percent);
     }
+    else if(type === 'error') {
+        alert("Worker Error: " + text);
+        els.downloadBtn.disabled = false;
+        els.progress.style.display = 'none';
+    }
     else if (type === 'extractDone') {
         if (group) rawGroups.push(group);
         queueIndex++;
@@ -158,10 +176,13 @@ function handleWorkerMsg(e) {
     }
     else if (type === 'zipDone') {
         downloadBlob(blob, filename);
-        els.downloadBtn.disabled = false;
-        els.downloadBtn.innerText = "Download All";
-        updateProgress("Complete!", 100);
-        setTimeout(() => els.progress.style.display = 'none', 2000);
+        els.downloadBtn.disabled = true;
+        els.downloadBtn.innerText = "Complete! (Reload to start over)";
+        updateProgress("Download Ready", 100);
+        
+        // Disable interactions as data is gone
+        dataTransferred = true;
+        document.querySelectorAll('.chapter-item').forEach(el => el.style.opacity = '0.5');
     }
 }
 
@@ -188,11 +209,8 @@ function applyFiltersToAll() {
         const valid = [];
         const filtered = [];
 
-        // Iterate through ORIGINAL extracted list to preserve order
         group.allImages.forEach(img => {
             let reason = null;
-
-            // If user manually restored, skip filter checks
             if (img.forceKeep) {
                 reason = null; 
             } else {
@@ -216,7 +234,6 @@ function applyFiltersToAll() {
         
         group.filteredList = filtered;
     });
-    
     updateBadge();
 }
 
@@ -243,6 +260,7 @@ function clearAndRender() {
         removeBtn.style.marginLeft = "10px";
         removeBtn.onclick = (e) => {
             e.stopPropagation();
+            if(dataTransferred) return;
             rawGroups.splice(idx, 1);
             applyFiltersToAll(); 
             clearAndRender();
@@ -261,6 +279,8 @@ function clearAndRender() {
 }
 
 async function toggleChapter(container, group) {
+    if (dataTransferred) return;
+
     if (container.classList.contains('expanded')) {
         container.classList.remove('expanded');
         container.innerHTML = ''; 
@@ -271,7 +291,6 @@ async function toggleChapter(container, group) {
     container.innerHTML = '<div style="padding:10px; text-align:center">Generating previews...</div>';
     await new Promise(r => setTimeout(r, 10));
 
-    // MAIN GALLERY
     const grid = document.createElement('div');
     grid.className = currentMode === 'extract' ? 'gallery-grid' : 'gallery-grid merge-mode';
     const isRTL = document.getElementById('rtl-mode').checked;
@@ -292,19 +311,18 @@ async function toggleChapter(container, group) {
     }
 
     if(items.length > limit) {
-            const more = document.createElement('div');
-            more.innerText = `+${items.length - limit} more pages`;
-            more.style.gridColumn = "1/-1";
-            more.style.textAlign = "center";
-            more.style.padding = "10px";
-            more.style.color = "var(--text-sub)";
-            grid.appendChild(more);
+        const more = document.createElement('div');
+        more.innerText = `+${items.length - limit} more pages`;
+        more.style.gridColumn = "1/-1";
+        more.style.textAlign = "center";
+        more.style.padding = "10px";
+        more.style.color = "var(--text-sub)";
+        grid.appendChild(more);
     }
 
     container.innerHTML = '';
     container.appendChild(grid);
 
-    // FILTERED GALLERY (With Modal View)
     if (group.filteredList && group.filteredList.length > 0) {
         const filterSection = document.createElement('div');
         filterSection.className = 'filtered-section';
@@ -317,28 +335,13 @@ async function toggleChapter(container, group) {
         listGrid.className = 'filtered-grid';
         listGrid.style.display = 'none';
 
-        // Render filtered thumbnails
         group.filteredList.forEach((f) => {
             const url = URL.createObjectURL(new Blob([f.data], {type: 'image/'+f.ext}));
             activeUrls.push(url);
-
             const div = document.createElement('div');
             div.className = 'filtered-item';
-            div.innerHTML = `
-                <img src="${url}" loading="lazy">
-                <div class="filter-reason">${f.reason}</div>
-            `;
-            
-            // CLICK: Open Modal with Context
-            // THIS is the part that was likely wrong in your cached file
-            div.onclick = () => {
-                openModal(url, { 
-                    imgObject: group.allImages[f.originalIdx], 
-                    reason: f.reason,
-                    group: group 
-                });
-            };
-
+            div.innerHTML = `<img src="${url}" loading="lazy"><div class="filter-reason">${f.reason}</div>`;
+            div.onclick = () => openModal(url, { imgObject: group.allImages[f.originalIdx], reason: f.reason, group: group });
             div.title = "Click to View & Restore";
             listGrid.appendChild(div);
         });
@@ -346,9 +349,7 @@ async function toggleChapter(container, group) {
         toggle.onclick = () => {
             const isHidden = listGrid.style.display === 'none';
             listGrid.style.display = isHidden ? 'grid' : 'none';
-            toggle.innerText = isHidden 
-                ? `⚠️ Hide ${group.filteredList.length} filtered images` 
-                : `⚠️ Show ${group.filteredList.length} filtered images`;
+            toggle.innerText = isHidden ? `⚠️ Hide ${group.filteredList.length} filtered images` : `⚠️ Show ${group.filteredList.length} filtered images`;
         };
 
         filterSection.appendChild(toggle);
@@ -365,37 +366,28 @@ function pairImages(images) {
     return pairs;
 }
 
-// MERGE LOGIC (Supports Horizontal & Vertical)
 async function createMergedUrl(pair, isRTL) {
-    // Check if vertical mode is selected
     const isVertical = document.querySelector('input[name="merge-mode"]:checked').value === 'vertical';
-
     const ctx = els.canvas.getContext('2d');
     const b1 = await createImageBitmap(new Blob([pair[0].data]));
     let b2 = null;
     if(pair[1]) b2 = await createImageBitmap(new Blob([pair[1].data]));
 
     if(!b2) {
-        // Single image
         els.canvas.width = b1.width;
         els.canvas.height = b1.height;
         ctx.drawImage(b1, 0, 0);
     } else {
         if (isVertical) {
-            // VERTICAL STACK
             els.canvas.width = Math.max(b1.width, b2.width);
             els.canvas.height = b1.height + b2.height;
             ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-            
-            // Center images horizontally
             ctx.drawImage(b1, (els.canvas.width - b1.width)/2, 0);
             ctx.drawImage(b2, (els.canvas.width - b2.width)/2, b1.height);
         } else {
-            // HORIZONTAL (Standard)
             els.canvas.width = b1.width + b2.width;
             els.canvas.height = Math.max(b1.height, b2.height);
             ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-
             if(isRTL) {
                 ctx.drawImage(b2, 0, 0);
                 ctx.drawImage(b1, b2.width, 0);
@@ -405,7 +397,6 @@ async function createMergedUrl(pair, isRTL) {
             }
         }
     }
-
     return new Promise(r => els.canvas.toBlob(blob => r(URL.createObjectURL(blob)), 'image/jpeg', 0.85));
 }
 
@@ -417,63 +408,52 @@ function addToGrid(grid, url, isMerge) {
     grid.appendChild(div);
 }
 
-// --- MODAL & RESTORE LOGIC ---
 function openModal(src, restoreContext = null) {
+    if(dataTransferred) return;
     els.modalImg.src = src;
     els.modal.style.display = 'flex';
 
-    if (restoreContext) {
-        // Viewing a Filtered Image -> Show Restore Button
+    if (restoreContext && els.modalActions) {
         currentModalImage = restoreContext.imgObject;
         currentModalGroup = restoreContext.group;
-        
-        // Safety check if index.html wasn't updated
-        if(els.modalActions) {
-            els.modalActions.style.display = 'flex';
-            els.modalReason.innerText = `Filtered: ${restoreContext.reason}`;
-            els.modalRestoreBtn.style.display = 'inline-block';
-        }
+        els.modalActions.style.display = 'flex';
+        els.modalReason.innerText = `Filtered: ${restoreContext.reason}`;
+        els.modalRestoreBtn.style.display = 'inline-block';
     } else {
-        // Viewing Normal Image -> Hide Restore UI
         currentModalImage = null;
         currentModalGroup = null;
         if(els.modalActions) els.modalActions.style.display = 'none';
     }
 }
 
-// Restore Button Handler
 if(els.modalRestoreBtn) {
     els.modalRestoreBtn.onclick = () => {
         if (currentModalImage && currentModalGroup) {
-            // 1. Force Keep
             currentModalImage.forceKeep = true;
-            // 2. Refresh Logic
             applyFiltersToAll();
-            // 3. Close Modal
             els.modal.style.display = 'none';
-            // 4. Update UI
             clearAndRender();
         }
     };
 }
 
-// Close Modal Logic
 document.querySelector('.close-modal').onclick = () => els.modal.style.display = 'none';
-els.modal.onclick = (e) => {
-    if(e.target === els.modal) els.modal.style.display = 'none';
-};
+els.modal.onclick = (e) => { if(e.target === els.modal) els.modal.style.display = 'none'; };
 
-// --- DOWNLOAD LOGIC ---
+// --- DOWNLOAD (FIXED: USES TRANSFERABLES) ---
 els.downloadBtn.onclick = async () => {
-    if(!rawGroups.length) return;
+    if(!rawGroups.length || dataTransferred) return;
 
     els.downloadBtn.disabled = true;
-    els.downloadBtn.innerText = "Processing...";
+    els.downloadBtn.innerText = "Packing Data...";
     els.progress.style.display = 'block';
 
     let finalGroups = [];
-    
+    const transferBuffers = [];
+
     if(currentMode === 'merge') {
+        // Merge mode creates new data, so we don't transfer original buffers
+        // We just clone/create new ones.
         updateProgress("Merging images for export...", 0);
         const isRTL = document.getElementById('rtl-mode').checked;
 
@@ -490,6 +470,9 @@ els.downloadBtn.onclick = async () => {
                 const blob = await res.blob();
                 const buf = await blob.arrayBuffer();
 
+                // Add buffer to transfer list
+                transferBuffers.push(buf);
+                
                 mergedImages.push({
                     name: `page_${String(j).padStart(4,'0')}.jpg`,
                     data: new Uint8Array(buf),
@@ -500,19 +483,37 @@ els.downloadBtn.onclick = async () => {
             finalGroups.push({ groupName: g.groupName, images: mergedImages });
         }
     } else {
-            // Extract mode: Use the filtered 'displayImages'
-            finalGroups = rawGroups.map(g => ({
-                groupName: g.groupName,
-                images: g.displayImages
-            }));
+        // Extract Mode: CRITICAL FIX - Use Transferables
+        // We pull the buffers out of the Uint8Arrays
+        updateProgress("Preparing data transfer...", 90);
+        
+        finalGroups = rawGroups.map(g => ({
+            groupName: g.groupName,
+            images: g.displayImages.map(img => {
+                // We must use the underlying buffer
+                if(img.data.buffer) {
+                    transferBuffers.push(img.data.buffer);
+                }
+                return {
+                    name: img.name,
+                    data: img.data, // This Uint8Array points to the buffer we are transferring
+                    ext: img.ext
+                };
+            })
+        }));
     }
 
-    updateProgress("Generating Archive...", 90);
-    worker.postMessage({ type: 'zip', groups: finalGroups, extType: 'cbz' });
+    updateProgress("Sending to Worker...", 95);
+    
+    // THE FIX: Pass transferBuffers as the second argument
+    worker.postMessage(
+        { type: 'zip', groups: finalGroups, extType: 'cbz' }, 
+        transferBuffers
+    );
 };
 
-// --- UTILS ---
 window.setMode = (mode) => {
+    if(dataTransferred) return;
     currentMode = mode;
     document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
     document.getElementById(`tab-${mode}`).classList.add('active');
