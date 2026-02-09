@@ -4,6 +4,23 @@ self.onmessage = function(e) {
     if (type === 'zip') createZip(e.data);
 };
 
+// --- HELPER: Find a byte sequence in a Uint8Array ---
+function findSequence(buffer, sequence, fromIndex) {
+    for (let i = fromIndex; i < buffer.length; i++) {
+        if (buffer[i] === sequence[0]) {
+            let match = true;
+            for (let j = 1; j < sequence.length; j++) {
+                if (buffer[i + j] !== sequence[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return i;
+        }
+    }
+    return -1;
+}
+
 function decodeQuotedPrintable(str) {
     return str.replace(/=[\r\n]+/g, "").replace(/=[0-9A-F]{2}/gi, function(v){
         return String.fromCharCode(parseInt(v.substr(1), 16));
@@ -12,58 +29,108 @@ function decodeQuotedPrintable(str) {
 
 function extractSingleMhtml({ buffer, filename }) {
     try {
+        const data = new Uint8Array(buffer);
         const decoder = new TextDecoder("utf-8");
-        const content = decoder.decode(buffer);
+        const encoder = new TextEncoder();
         let extracted = [];
 
-        // 1. BOUNDARY DETECTION
-        let boundary = null;
-        const bMatch = content.match(/boundary="?([^";\s]+)"?/i);
-        if (bMatch) boundary = bMatch[1];
+        // 1. BOUNDARY DETECTION (Scan only the first 4KB to save memory)
+        // We only decode the start of the file to find the boundary string.
+        const headerText = decoder.decode(data.slice(0, 4096));
+        let boundaryString = null;
+        
+        const bMatch = headerText.match(/boundary="?([^";\s]+)"?/i);
+        if (bMatch) boundaryString = bMatch[1];
         else {
-            const match = content.match(/^--[a-fA-F0-9\-]+(\r?\n|$)/m);
-            if(match) boundary = match[0].trim().replace(/^--/, '');
+            const match = headerText.match(/^--[a-fA-F0-9\-]+(\r?\n|$)/m);
+            if(match) boundaryString = match[0].trim().replace(/^--/, '');
         }
 
-        // 2. IMAGE EXTRACTION
-        if (boundary) {
-            const parts = content.split("--" + boundary);
-            
-            parts.forEach((part, idx) => {
-                const sep = part.indexOf("\r\n\r\n");
-                let bodyStart = sep, sepLen = 4;
-                if(sep === -1) {
-                    const sep2 = part.indexOf("\n\n");
-                    if(sep2 !== -1) { bodyStart = sep2; sepLen = 2; } else return;
+        if (!boundaryString) throw new Error("No boundary found");
+
+        // Convert boundary to bytes for binary search
+        const boundaryBytes = encoder.encode("--" + boundaryString);
+        
+        // 2. BINARY PARSING LOOP
+        let currentIndex = 0;
+        let partIdx = 0;
+
+        while (currentIndex < data.length) {
+            // Find start of next boundary
+            const boundaryIndex = findSequence(data, boundaryBytes, currentIndex);
+            if (boundaryIndex === -1) break; // No more parts
+
+            // If we have a previous start, the data is between `currentIndex` and `boundaryIndex`
+            if (currentIndex > 0) {
+                // This chunk contains Headers + \r\n\r\n + Body
+                const chunkStart = currentIndex;
+                const chunkEnd = boundaryIndex;
+                
+                // Search for Header/Body separator (\r\n\r\n or \n\n) within this chunk
+                // We limit header search to first 2KB of the chunk to avoid scanning the whole image
+                const maxHeaderCheck = Math.min(chunkEnd, chunkStart + 2048);
+                let bodyStart = -1;
+                
+                // Look for \r\n\r\n (13, 10, 13, 10)
+                const dblCrLf = findSequence(data.subarray(chunkStart, maxHeaderCheck), new Uint8Array([13,10,13,10]), 0);
+                if (dblCrLf !== -1) bodyStart = chunkStart + dblCrLf + 4;
+                else {
+                    // Fallback: Look for \n\n (10, 10)
+                    const dblLf = findSequence(data.subarray(chunkStart, maxHeaderCheck), new Uint8Array([10,10]), 0);
+                    if (dblLf !== -1) bodyStart = chunkStart + dblLf + 2;
                 }
 
-                const headers = part.substring(0, bodyStart);
-                let cleanBody = part.substring(bodyStart + sepLen).replace(/[\r\n]+$/, ""); 
+                if (bodyStart !== -1 && bodyStart < chunkEnd) {
+                    // Decode Headers ONLY
+                    const headers = decoder.decode(data.subarray(chunkStart, bodyStart));
+                    const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
+                    const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*(base64|quoted-printable)/i);
 
-                if (cleanBody.length < 10) return;
+                    if (typeMatch) {
+                        const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
+                        const rawBody = data.subarray(bodyStart, chunkEnd);
+                        
+                        let finalBytes;
 
-                const typeMatch = headers.match(/Content-Type:\s*image\/(jpeg|png|gif|webp)/i);
-                const encodingMatch = headers.match(/Content-Transfer-Encoding:\s*(base64|quoted-printable)/i);
-                const sortKey = String(idx).padStart(8, '0');
-
-                if (typeMatch) {
-                    const ext = typeMatch[1] === 'jpeg' ? 'jpg' : typeMatch[1];
-                    try {
-                        let bytes;
-                        if (encodingMatch && encodingMatch[1].toLowerCase() === 'quoted-printable') {
-                            cleanBody = decodeQuotedPrintable(cleanBody);
-                            const bin = cleanBody.split('').map(c => c.charCodeAt(0));
-                            bytes = new Uint8Array(bin);
-                        } else {
-                            const bin = atob(cleanBody.replace(/[\r\n\t\s]+/g, ""));
-                            if (bin.length < 10) return; 
-                            bytes = new Uint8Array(bin.length);
-                            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                        // Handle Encoding
+                        if (encodingMatch) {
+                            const enc = encodingMatch[1].toLowerCase();
+                            if (enc === 'base64') {
+                                // Clean newlines from base64 string then decode
+                                const b64Str = decoder.decode(rawBody).replace(/[\r\n\t\s]+/g, "");
+                                const bin = atob(b64Str);
+                                finalBytes = new Uint8Array(bin.length);
+                                for (let i = 0; i < bin.length; i++) finalBytes[i] = bin.charCodeAt(i);
+                            } else if (enc === 'quoted-printable') {
+                                const qpStr = decoder.decode(rawBody);
+                                const clean = decodeQuotedPrintable(qpStr);
+                                finalBytes = new Uint8Array(clean.length);
+                                for (let i = 0; i < clean.length; i++) finalBytes[i] = clean.charCodeAt(i);
+                            }
+                        } 
+                        
+                        // If no encoding (binary), use raw bytes directly
+                        if (!finalBytes) {
+                             // Some MHTML saves images as raw binary. 
+                             // We copy it to ensure it's a clean view.
+                             finalBytes = rawBody.slice(); 
                         }
-                        extracted.push({ sortKey, data: bytes, ext, size: bytes.length });
-                    } catch (err) { /* Skip corrupt parts */ }
+
+                        if (finalBytes && finalBytes.length > 100) {
+                             extracted.push({ 
+                                 sortKey: String(partIdx).padStart(8, '0'), 
+                                 data: finalBytes, 
+                                 ext, 
+                                 size: finalBytes.length 
+                             });
+                        }
+                    }
                 }
-            });
+            }
+            
+            partIdx++;
+            // Move index past the current boundary
+            currentIndex = boundaryIndex + boundaryBytes.length;
         }
 
         extracted.sort((a,b) => a.sortKey.localeCompare(b.sortKey, undefined, {numeric:true}));
@@ -75,30 +142,22 @@ function extractSingleMhtml({ buffer, filename }) {
             size: item.size 
         }));
 
-        // --- 3. SMART RENAME LOGIC (FIXED FOR UNDERSCORES) ---
+        // --- 3. SMART RENAME LOGIC ---
         let baseName = filename.replace(/\.mhtml?/i, "");
-
-        // A. CRITICAL FIX: Replace underscores and plus signs with spaces
         baseName = baseName.replace(/_/g, " "); 
         baseName = baseName.replace(/\+/g, " "); 
-        
-        // B. Remove spam tags like [ScanGroup] or (Year) or "Read Manga Online"
         baseName = baseName.replace(/\[.*?\]|\(.*?\)/g, ""); 
         baseName = baseName.replace(/\b(read manga online|read online|manga)\b/gi, ""); 
         baseName = baseName.replace(/\s+/g, " ").trim(); 
 
-        // C. Regex to find "Chapter X" or just a number
-        // Matches: "Chapter 1", "Ch.1", "Vol 1", "c1", "No.1", or just " 01"
         const nameMatch = baseName.match(/^(.*?)(\b(?:chapter|ch\.?|no\.?|c\.?|vol\.?|volume|#)\s*[\d\.]+|\b\d+)(.*)$/i);
         
         if (nameMatch) {
             const prefix = nameMatch[1].trim();
             const numberPart = nameMatch[2].trim();
             const suffix = nameMatch[3].trim();
-            
             const cleanPrefix = prefix.replace(/[-_]$/, "").trim();
             
-            // Put Number FIRST: "Chapter 1 - Title"
             if(cleanPrefix) {
                 baseName = `${numberPart} - ${cleanPrefix} ${suffix}`.trim();
             } else {
@@ -106,18 +165,18 @@ function extractSingleMhtml({ buffer, filename }) {
             }
         }
 
-        // Final cleanup
         baseName = baseName.replace(/\s+-\s*$/, "").replace(/\s+/g, " ").trim();
 
         const group = finalImages.length > 0 ? { groupName: baseName, allImages: finalImages } : null;
         self.postMessage({ type: 'extractDone', group: group });
         
     } catch(e) {
+        console.error(e);
         self.postMessage({ type: 'status', text: "Error parsing file", percent: 0 });
     }
 }
 
-// 4. ASYNC ZIP CREATION (ANTI-LAG)
+// 4. ASYNC ZIP CREATION
 async function createZip({ groups, extType }) {
     try {
         const crcTable = new Int32Array(256);
@@ -179,4 +238,4 @@ async function createZip({ groups, extType }) {
     } catch(err) {
         self.postMessage({ type: 'error', text: err.message });
     }
-    }
+                            }
