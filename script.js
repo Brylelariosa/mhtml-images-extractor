@@ -32,7 +32,6 @@ const els = {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
 function init() {
-    // UPDATED: Load worker from external file
     worker = new Worker('worker.js');
     worker.onmessage = handleWorkerMsg;
     loadConfig();
@@ -99,7 +98,6 @@ async function handleFiles(files) {
 async function processNextFile() {
     if (queueIndex >= processingQueue.length) {
         if (looseImagesBuffer.length > 0) {
-            // For loose images, we treat them as pre-filtered candidates
             const looseCandidates = looseImagesBuffer.map((img, i) => ({
                 originalIdx: i, data: img.data, ext: img.ext, size: img.data.length
             }));
@@ -176,14 +174,13 @@ function applyFiltersToAll() {
     const reverse = els.reverse.checked;
 
     rawGroups.forEach(group => {
-        // Filter
         const valid = [];
         const filtered = [];
 
         group.allImages.forEach(img => {
             let reason = null;
             if (img.size < minSize) reason = `Too Small (${Math.round(img.size/1024)}KB)`;
-            else if (noGifs && img.ext === 'gif') reason = "GIF Excluded";
+            else if (noGifs && img.ext.toLowerCase() === 'gif') reason = "GIF Excluded";
 
             if (reason) {
                 filtered.push({ ...img, reason });
@@ -192,10 +189,9 @@ function applyFiltersToAll() {
             }
         });
 
-        // Sort
-        if (reverse) valid.reverse(); // Note: This reverses the original order
+        // Apply Sorting to VALID items only
+        if (reverse) valid.reverse();
         
-        // Renumber for display
         group.displayImages = valid.map((img, i) => ({
             ...img,
             name: `${String(i+1).padStart(3, '0')}.${img.ext}`
@@ -220,7 +216,6 @@ function clearAndRender() {
         const item = document.createElement('div');
         item.className = 'chapter-item';
         
-        // Header
         const head = document.createElement('div');
         head.className = 'chapter-head';
         head.innerHTML = `<span>${group.groupName}</span> <span style="font-size:0.8em; color:var(--text-sub)">${group.displayImages.length} images</span>`;
@@ -232,12 +227,11 @@ function clearAndRender() {
         removeBtn.onclick = (e) => {
             e.stopPropagation();
             rawGroups.splice(idx, 1);
-            applyFiltersToAll(); // Update badge
+            applyFiltersToAll(); 
             clearAndRender();
         };
         head.appendChild(removeBtn);
 
-        // Body
         const body = document.createElement('div');
         body.className = 'chapter-body';
 
@@ -260,12 +254,13 @@ async function toggleChapter(container, group) {
     container.innerHTML = '<div style="padding:10px; text-align:center">Generating previews...</div>';
     await new Promise(r => setTimeout(r, 10));
 
+    // MAIN GALLERY
     const grid = document.createElement('div');
     grid.className = currentMode === 'extract' ? 'gallery-grid' : 'gallery-grid merge-mode';
     const isRTL = document.getElementById('rtl-mode').checked;
 
     const items = currentMode === 'extract' ? group.displayImages : pairImages(group.displayImages);
-    const limit = Math.min(items.length, 30);
+    const limit = Math.min(items.length, 40);
 
     for(let i=0; i<limit; i++) {
         let url;
@@ -292,31 +287,44 @@ async function toggleChapter(container, group) {
     container.innerHTML = '';
     container.appendChild(grid);
 
-    // --- RENDER FILTERED LIST ---
+    // FILTERED GALLERY (New Visual Style)
     if (group.filteredList && group.filteredList.length > 0) {
         const filterSection = document.createElement('div');
         filterSection.className = 'filtered-section';
         
         const toggle = document.createElement('div');
         toggle.className = 'filtered-toggle';
-        toggle.innerText = `⚠️ ${group.filteredList.length} items excluded by filters`;
+        toggle.innerText = `⚠️ Show ${group.filteredList.length} filtered images`;
         
-        const list = document.createElement('div');
-        list.className = 'filtered-list';
-        
-        // Build text list
-        group.filteredList.forEach((f, idx) => {
-            const r = document.createElement('div');
-            r.innerText = `#${f.originalIdx} .${f.ext} - ${f.reason}`;
-            list.appendChild(r);
+        const listGrid = document.createElement('div');
+        listGrid.className = 'filtered-grid';
+        listGrid.style.display = 'none';
+
+        // Render filtered thumbnails
+        group.filteredList.forEach((f) => {
+            const url = URL.createObjectURL(new Blob([f.data], {type: 'image/'+f.ext}));
+            activeUrls.push(url);
+
+            const div = document.createElement('div');
+            div.className = 'filtered-item';
+            div.innerHTML = `
+                <img src="${url}" loading="lazy" title="${f.reason}">
+                <div class="filter-reason">${f.reason}</div>
+            `;
+            div.onclick = () => openModal(url);
+            listGrid.appendChild(div);
         });
 
         toggle.onclick = () => {
-            list.style.display = list.style.display === 'block' ? 'none' : 'block';
+            const isHidden = listGrid.style.display === 'none';
+            listGrid.style.display = isHidden ? 'grid' : 'none';
+            toggle.innerText = isHidden 
+                ? `⚠️ Hide ${group.filteredList.length} filtered images` 
+                : `⚠️ Show ${group.filteredList.length} filtered images`;
         };
 
         filterSection.appendChild(toggle);
-        filterSection.appendChild(list);
+        filterSection.appendChild(listGrid);
         container.appendChild(filterSection);
     }
 }
@@ -373,7 +381,6 @@ els.downloadBtn.onclick = async () => {
     els.progress.style.display = 'block';
 
     let finalGroups = [];
-    // Use group.displayImages for download (respects filters)
     
     if(currentMode === 'merge') {
         updateProgress("Merging images for export...", 0);
