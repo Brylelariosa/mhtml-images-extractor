@@ -177,10 +177,18 @@ function applyFiltersToAll() {
         const valid = [];
         const filtered = [];
 
+        // We iterate through the ORIGINAL extracted list. 
+        // This preserves the chronological order when restoring images.
         group.allImages.forEach(img => {
             let reason = null;
-            if (img.size < minSize) reason = `Too Small (${Math.round(img.size/1024)}KB)`;
-            else if (noGifs && img.ext.toLowerCase() === 'gif') reason = "GIF Excluded";
+
+            // IF forceKeep is true (user clicked restore), skip checks
+            if (img.forceKeep) {
+                reason = null; 
+            } else {
+                if (img.size < minSize) reason = `Too Small (${Math.round(img.size/1024)}KB)`;
+                else if (noGifs && img.ext.toLowerCase() === 'gif') reason = "GIF Excluded";
+            }
 
             if (reason) {
                 filtered.push({ ...img, reason });
@@ -287,7 +295,7 @@ async function toggleChapter(container, group) {
     container.innerHTML = '';
     container.appendChild(grid);
 
-    // FILTERED GALLERY (New Visual Style)
+    // FILTERED GALLERY (New Visual Style with Restore)
     if (group.filteredList && group.filteredList.length > 0) {
         const filterSection = document.createElement('div');
         filterSection.className = 'filtered-section';
@@ -308,10 +316,32 @@ async function toggleChapter(container, group) {
             const div = document.createElement('div');
             div.className = 'filtered-item';
             div.innerHTML = `
-                <img src="${url}" loading="lazy" title="${f.reason}">
+                <img src="${url}" loading="lazy">
                 <div class="filter-reason">${f.reason}</div>
             `;
-            div.onclick = () => openModal(url);
+            
+            // --- CLICK TO RESTORE LOGIC ---
+            div.onclick = (e) => {
+                // If Shift key is held, just view large, don't restore
+                if(e.shiftKey) {
+                    openModal(url);
+                    return;
+                }
+
+                // 1. Mark original image as "Force Keep"
+                const original = group.allImages[f.originalIdx];
+                if(original) original.forceKeep = true;
+
+                // 2. Re-run filters
+                applyFiltersToAll();
+
+                // 3. Refresh this specific chapter view
+                // We briefly collapse it and re-expand it to trigger a re-render
+                container.classList.remove('expanded');
+                toggleChapter(container, group);
+            };
+
+            div.title = "Click to Restore (Shift+Click to View)";
             listGrid.appendChild(div);
         });
 
