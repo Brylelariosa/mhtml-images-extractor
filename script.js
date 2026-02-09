@@ -330,6 +330,7 @@ async function toggleChapter(container, group) {
             `;
             
             // CLICK: Open Modal with Context
+            // THIS is the part that was likely wrong in your cached file
             div.onclick = () => {
                 openModal(url, { 
                     imgObject: group.allImages[f.originalIdx], 
@@ -366,6 +367,7 @@ function pairImages(images) {
 
 // MERGE LOGIC (Supports Horizontal & Vertical)
 async function createMergedUrl(pair, isRTL) {
+    // Check if vertical mode is selected
     const isVertical = document.querySelector('input[name="merge-mode"]:checked').value === 'vertical';
 
     const ctx = els.canvas.getContext('2d');
@@ -425,30 +427,35 @@ function openModal(src, restoreContext = null) {
         currentModalImage = restoreContext.imgObject;
         currentModalGroup = restoreContext.group;
         
-        els.modalActions.style.display = 'flex';
-        els.modalReason.innerText = `Filtered: ${restoreContext.reason}`;
-        els.modalRestoreBtn.style.display = 'inline-block';
+        // Safety check if index.html wasn't updated
+        if(els.modalActions) {
+            els.modalActions.style.display = 'flex';
+            els.modalReason.innerText = `Filtered: ${restoreContext.reason}`;
+            els.modalRestoreBtn.style.display = 'inline-block';
+        }
     } else {
         // Viewing Normal Image -> Hide Restore UI
         currentModalImage = null;
         currentModalGroup = null;
-        els.modalActions.style.display = 'none';
+        if(els.modalActions) els.modalActions.style.display = 'none';
     }
 }
 
 // Restore Button Handler
-els.modalRestoreBtn.onclick = () => {
-    if (currentModalImage && currentModalGroup) {
-        // 1. Force Keep
-        currentModalImage.forceKeep = true;
-        // 2. Refresh Logic
-        applyFiltersToAll();
-        // 3. Close Modal
-        els.modal.style.display = 'none';
-        // 4. Update UI
-        clearAndRender();
-    }
-};
+if(els.modalRestoreBtn) {
+    els.modalRestoreBtn.onclick = () => {
+        if (currentModalImage && currentModalGroup) {
+            // 1. Force Keep
+            currentModalImage.forceKeep = true;
+            // 2. Refresh Logic
+            applyFiltersToAll();
+            // 3. Close Modal
+            els.modal.style.display = 'none';
+            // 4. Update UI
+            clearAndRender();
+        }
+    };
+}
 
 // Close Modal Logic
 document.querySelector('.close-modal').onclick = () => els.modal.style.display = 'none';
