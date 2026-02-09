@@ -75,26 +75,28 @@ function extractSingleMhtml({ buffer, filename }) {
             size: item.size 
         }));
 
-        // --- 3. SMART RENAME LOGIC (Improved) ---
+        // --- 3. SMART RENAME LOGIC (FIXED FOR UNDERSCORES) ---
         let baseName = filename.replace(/\.mhtml?/i, "");
 
-        // A. Clean up the filename BEFORE matching
-        baseName = baseName.replace(/_/g, " "); // Turn underscores to spaces
-        baseName = baseName.replace(/\+/g, " "); // Turn plus to spaces
-        baseName = baseName.replace(/\[.*?\]|\(.*?\)/g, ""); // Remove [ScanGroup] or (Year) tags
-        baseName = baseName.replace(/\b(read manga online|read online|manga)\b/gi, ""); // Remove spam words
-        baseName = baseName.replace(/\s+/g, " ").trim(); // Remove double spaces
+        // A. CRITICAL FIX: Replace underscores and plus signs with spaces
+        baseName = baseName.replace(/_/g, " "); 
+        baseName = baseName.replace(/\+/g, " "); 
+        
+        // B. Remove spam tags like [ScanGroup] or (Year) or "Read Manga Online"
+        baseName = baseName.replace(/\[.*?\]|\(.*?\)/g, ""); 
+        baseName = baseName.replace(/\b(read manga online|read online|manga)\b/gi, ""); 
+        baseName = baseName.replace(/\s+/g, " ").trim(); 
 
-        // B. Regex to find "Chapter X" or just a number
+        // C. Regex to find "Chapter X" or just a number
         // Matches: "Chapter 1", "Ch.1", "Vol 1", "c1", "No.1", or just " 01"
         const nameMatch = baseName.match(/^(.*?)(\b(?:chapter|ch\.?|no\.?|c\.?|vol\.?|volume|#)\s*[\d\.]+|\b\d+)(.*)$/i);
         
         if (nameMatch) {
             const prefix = nameMatch[1].trim();
-            const numberPart = nameMatch[2].trim(); // The "Chapter 1" part
+            const numberPart = nameMatch[2].trim();
             const suffix = nameMatch[3].trim();
             
-            const cleanPrefix = prefix.replace(/[-_]$/, "").trim(); // Remove trailing hyphens
+            const cleanPrefix = prefix.replace(/[-_]$/, "").trim();
             
             // Put Number FIRST: "Chapter 1 - Title"
             if(cleanPrefix) {
@@ -104,7 +106,7 @@ function extractSingleMhtml({ buffer, filename }) {
             }
         }
 
-        // Final cleanup of any double hyphens created
+        // Final cleanup
         baseName = baseName.replace(/\s+-\s*$/, "").replace(/\s+/g, " ").trim();
 
         const group = finalImages.length > 0 ? { groupName: baseName, allImages: finalImages } : null;
@@ -139,7 +141,6 @@ async function createZip({ groups, extType }) {
             for(const img of group.images) {
                 processed++;
 
-                // Pause every 20 files to stop lag
                 if(processed % 20 === 0) {
                      self.postMessage({ type: 'status', text: "Compressing...", percent: (processed/totalFiles)*100 });
                      await new Promise(r => setTimeout(r, 5)); 
