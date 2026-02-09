@@ -7,6 +7,10 @@ let processingQueue = [];
 let queueIndex = 0;
 let looseImagesBuffer = [];
 
+// Track current modal context
+let currentModalImage = null; 
+let currentModalGroup = null;
+
 const els = {
     drop: document.getElementById('drop-zone'),
     input: document.getElementById('file-input'),
@@ -22,8 +26,15 @@ const els = {
     settingsMerge: document.getElementById('settings-merge'),
     downloadBtn: document.getElementById('download-btn'),
     addMoreBtn: document.getElementById('add-more-btn'),
+    
+    // Modal Elements
     modal: document.getElementById('img-modal'),
     modalImg: document.getElementById('modal-img'),
+    modalActions: document.getElementById('modal-actions'),
+    modalReason: document.getElementById('modal-reason'),
+    modalRestoreBtn: document.getElementById('modal-restore-btn'),
+
+    // Settings
     sizeFilter: document.getElementById('size-filter'),
     noGifs: document.getElementById('no-gifs'),
     reverse: document.getElementById('reverse-sort')
@@ -177,12 +188,11 @@ function applyFiltersToAll() {
         const valid = [];
         const filtered = [];
 
-        // We iterate through the ORIGINAL extracted list. 
-        // This preserves the chronological order when restoring images.
+        // Iterate through ORIGINAL extracted list to preserve order
         group.allImages.forEach(img => {
             let reason = null;
 
-            // IF forceKeep is true (user clicked restore), skip checks
+            // If user manually restored, skip filter checks
             if (img.forceKeep) {
                 reason = null; 
             } else {
@@ -197,7 +207,6 @@ function applyFiltersToAll() {
             }
         });
 
-        // Apply Sorting to VALID items only
         if (reverse) valid.reverse();
         
         group.displayImages = valid.map((img, i) => ({
@@ -295,7 +304,7 @@ async function toggleChapter(container, group) {
     container.innerHTML = '';
     container.appendChild(grid);
 
-    // FILTERED GALLERY (New Visual Style with Restore)
+    // FILTERED GALLERY (With Modal View)
     if (group.filteredList && group.filteredList.length > 0) {
         const filterSection = document.createElement('div');
         filterSection.className = 'filtered-section';
@@ -320,28 +329,16 @@ async function toggleChapter(container, group) {
                 <div class="filter-reason">${f.reason}</div>
             `;
             
-            // --- CLICK TO RESTORE LOGIC ---
-            div.onclick = (e) => {
-                // If Shift key is held, just view large, don't restore
-                if(e.shiftKey) {
-                    openModal(url);
-                    return;
-                }
-
-                // 1. Mark original image as "Force Keep"
-                const original = group.allImages[f.originalIdx];
-                if(original) original.forceKeep = true;
-
-                // 2. Re-run filters
-                applyFiltersToAll();
-
-                // 3. Refresh this specific chapter view
-                // We briefly collapse it and re-expand it to trigger a re-render
-                container.classList.remove('expanded');
-                toggleChapter(container, group);
+            // CLICK: Open Modal with Context
+            div.onclick = () => {
+                openModal(url, { 
+                    imgObject: group.allImages[f.originalIdx], 
+                    reason: f.reason,
+                    group: group 
+                });
             };
 
-            div.title = "Click to Restore (Shift+Click to View)";
+            div.title = "Click to View & Restore";
             listGrid.appendChild(div);
         });
 
@@ -367,27 +364,43 @@ function pairImages(images) {
     return pairs;
 }
 
+// MERGE LOGIC (Supports Horizontal & Vertical)
 async function createMergedUrl(pair, isRTL) {
+    const isVertical = document.querySelector('input[name="merge-mode"]:checked').value === 'vertical';
+
     const ctx = els.canvas.getContext('2d');
     const b1 = await createImageBitmap(new Blob([pair[0].data]));
     let b2 = null;
     if(pair[1]) b2 = await createImageBitmap(new Blob([pair[1].data]));
 
     if(!b2) {
+        // Single image
         els.canvas.width = b1.width;
         els.canvas.height = b1.height;
         ctx.drawImage(b1, 0, 0);
     } else {
-        els.canvas.width = b1.width + b2.width;
-        els.canvas.height = Math.max(b1.height, b2.height);
-        ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
-
-        if(isRTL) {
-            ctx.drawImage(b2, 0, 0);
-            ctx.drawImage(b1, b2.width, 0);
+        if (isVertical) {
+            // VERTICAL STACK
+            els.canvas.width = Math.max(b1.width, b2.width);
+            els.canvas.height = b1.height + b2.height;
+            ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
+            
+            // Center images horizontally
+            ctx.drawImage(b1, (els.canvas.width - b1.width)/2, 0);
+            ctx.drawImage(b2, (els.canvas.width - b2.width)/2, b1.height);
         } else {
-            ctx.drawImage(b1, 0, 0);
-            ctx.drawImage(b2, b1.width, 0);
+            // HORIZONTAL (Standard)
+            els.canvas.width = b1.width + b2.width;
+            els.canvas.height = Math.max(b1.height, b2.height);
+            ctx.fillStyle="#fff"; ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
+
+            if(isRTL) {
+                ctx.drawImage(b2, 0, 0);
+                ctx.drawImage(b1, b2.width, 0);
+            } else {
+                ctx.drawImage(b1, 0, 0);
+                ctx.drawImage(b2, b1.width, 0);
+            }
         }
     }
 
@@ -401,6 +414,47 @@ function addToGrid(grid, url, isMerge) {
     div.onclick = () => openModal(url);
     grid.appendChild(div);
 }
+
+// --- MODAL & RESTORE LOGIC ---
+function openModal(src, restoreContext = null) {
+    els.modalImg.src = src;
+    els.modal.style.display = 'flex';
+
+    if (restoreContext) {
+        // Viewing a Filtered Image -> Show Restore Button
+        currentModalImage = restoreContext.imgObject;
+        currentModalGroup = restoreContext.group;
+        
+        els.modalActions.style.display = 'flex';
+        els.modalReason.innerText = `Filtered: ${restoreContext.reason}`;
+        els.modalRestoreBtn.style.display = 'inline-block';
+    } else {
+        // Viewing Normal Image -> Hide Restore UI
+        currentModalImage = null;
+        currentModalGroup = null;
+        els.modalActions.style.display = 'none';
+    }
+}
+
+// Restore Button Handler
+els.modalRestoreBtn.onclick = () => {
+    if (currentModalImage && currentModalGroup) {
+        // 1. Force Keep
+        currentModalImage.forceKeep = true;
+        // 2. Refresh Logic
+        applyFiltersToAll();
+        // 3. Close Modal
+        els.modal.style.display = 'none';
+        // 4. Update UI
+        clearAndRender();
+    }
+};
+
+// Close Modal Logic
+document.querySelector('.close-modal').onclick = () => els.modal.style.display = 'none';
+els.modal.onclick = (e) => {
+    if(e.target === els.modal) els.modal.style.display = 'none';
+};
 
 // --- DOWNLOAD LOGIC ---
 els.downloadBtn.onclick = async () => {
@@ -450,7 +504,7 @@ els.downloadBtn.onclick = async () => {
     worker.postMessage({ type: 'zip', groups: finalGroups, extType: 'cbz' });
 };
 
-// --- UTILS & MODAL ---
+// --- UTILS ---
 window.setMode = (mode) => {
     currentMode = mode;
     document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
@@ -472,15 +526,8 @@ document.getElementById('theme-toggle').onclick = () => {
     saveConfig();
 };
 
-function openModal(src) {
-    els.modalImg.src = src;
-    els.modal.style.display = 'flex';
-}
-
 document.onkeydown = (e) => {
-    if(els.modal.style.display === 'flex') {
-        if(e.key === 'Escape') els.modal.style.display = 'none';
-    }
+    if(els.modal.style.display === 'flex' && e.key === 'Escape') els.modal.style.display = 'none';
 };
 
 function downloadBlob(blob, name) {
