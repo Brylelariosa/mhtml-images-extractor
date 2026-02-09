@@ -47,18 +47,6 @@
 
             <div id="settings-merge" class="control-panel hidden">
                 <span class="control-label">Merger Settings</span>
-                
-                <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom:10px; font-size:0.9rem; font-weight:600;">
-                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                        <input type="radio" name="merge-mode" value="normal" checked onchange="triggerRefilter()"> 
-                        Standard
-                    </label>
-                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                        <input type="radio" name="merge-mode" value="vertical" onchange="triggerRefilter()"> 
-                        Webtoon (Vertical)
-                    </label>
-                </div>
-
                 <div class="toggle-row" id="rtl-container">
                     <span>Manga Direction (RTL)</span>
                     <label class="switch"><input type="checkbox" id="rtl-mode" onchange="triggerRefilter()"><span class="slider"></span></label>
