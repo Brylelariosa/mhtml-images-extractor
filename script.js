@@ -41,17 +41,38 @@ const els = {
     reverse: document.getElementById('reverse-sort')
 };
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+        .then(reg => {
+            // Check for updates periodically
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log("New update available!");
+                    }
+                });
+            });
+        })
+        .catch(err => console.error("SW Fail:", err));
+}
 
 function init() {
-    // FORCE UPDATE: Add timestamp to prevent using cached old worker
-    worker = new Worker('worker.js' + Date.now());
-    worker.onmessage = handleWorkerMsg;
-    worker.onerror = (e) => {
-        alert("Worker Error: " + e.message);
-        els.downloadBtn.disabled = false;
-        els.progress.style.display = 'none';
-    };
+    try {
+        worker = new Worker('worker.js');
+        
+        worker.onmessage = handleWorkerMsg;
+        worker.onerror = (e) => {
+            // Better error message handling
+            const msg = e.message ? e.message : "File not found (Offline missing file?)";
+            alert("Worker Failed: " + msg + "\n\nTry clearing browser cache for this site.");
+            els.downloadBtn.disabled = false;
+            els.progress.style.display = 'none';
+        };
+    } catch (err) {
+        alert("Could not start worker: " + err.message);
+    }
     loadConfig();
 }
 
