@@ -257,10 +257,35 @@ function applyFiltersToAll() {
     updateBadge();
 }
 
+// --- NEW: TOTAL SIZE INDICATOR ---
 function updateBadge() {
-    const totalImages = rawGroups.reduce((acc, g) => acc + g.displayImages.length, 0);
+    let totalImages = 0;
+    let totalSize = 0;
+
+    rawGroups.forEach(g => {
+        totalImages += g.displayImages.length;
+        // Sum up size of currently valid images
+        g.displayImages.forEach(img => totalSize += img.size);
+    });
+
     els.badge.style.display = 'inline-block';
     els.badge.innerText = `${rawGroups.length} Files / ${totalImages} imgs`;
+
+    // Update Download Button Text with Size
+    if (!els.downloadBtn.disabled && !dataTransferred) {
+        const sizeStr = formatBytes(totalSize);
+        els.downloadBtn.innerText = `Download All (~${sizeStr})`;
+    }
+}
+
+// Helper to format bytes
+function formatBytes(bytes, decimals = 1) {
+    if (!+bytes) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
 // --- RENDER LOGIC ---
@@ -578,4 +603,44 @@ els.downloadBtn.onclick = async () => {
 
     updateProgress("Sending to Worker...", 95);
     worker.postMessage(
-        { type: 'zip', 
+        { type: 'zip', groups: finalGroups, extType: 'cbz' }, 
+        transferBuffers
+    );
+};
+
+window.setMode = (mode) => {
+    if(dataTransferred) return;
+    currentMode = mode;
+    document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-${mode}`).classList.add('active');
+    els.settingsExtract.classList.toggle('hidden', mode !== 'extract');
+    els.settingsMerge.classList.toggle('hidden', mode === 'extract');
+    clearAndRender();
+};
+
+document.getElementById('reset-btn').onclick = () => {
+    activeUrls.forEach(u => URL.revokeObjectURL(u));
+    location.reload();
+};
+
+document.getElementById('theme-toggle').onclick = () => {
+    const html = document.documentElement;
+    const newT = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', newT);
+    saveConfig();
+};
+
+document.onkeydown = (e) => {
+    if(els.modal.style.display === 'flex' && e.key === 'Escape') els.modal.style.display = 'none';
+};
+
+function downloadBlob(blob, name) {
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+init();
