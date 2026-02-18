@@ -7,11 +7,13 @@ let processingQueue = [];
 let queueIndex = 0;
 let looseImagesBuffer = [];
 let dataTransferred = false;
-let corruptCount = 0; // Track corrupt images
+let corruptCount = 0; 
 
 // Modal State
 let currentModalImage = null; 
 let currentModalGroup = null;
+let currentModalList = []; 
+let currentModalIndex = -1; 
 
 const els = {
     drop: document.getElementById('drop-zone'),
@@ -61,7 +63,6 @@ if ('serviceWorker' in navigator) {
 function init() {
     try {
         worker = new Worker('worker.js');
-        
         worker.onmessage = handleWorkerMsg;
         worker.onerror = (e) => {
             const msg = e.message ? e.message : "File not found (Offline missing file?)";
@@ -129,7 +130,7 @@ async function handleFiles(files) {
         if(confirm("Downloading cleared the memory. Reload to process new files?")) location.reload();
         return;
     }
-    resetCorruptState(); // Clear warnings
+    resetCorruptState();
     els.drop.style.display = 'none';
     els.progress.style.display = 'block';
     els.actionBar.style.display = 'none';
@@ -160,11 +161,7 @@ async function processNextFile() {
     if (name.endsWith('.mhtml') || name.endsWith('.mht')) {
         try {
             const buf = await file.arrayBuffer();
-            worker.postMessage({ 
-                type: 'extractOne', 
-                buffer: buf, 
-                filename: file.name
-            }, [buf]); 
+            worker.postMessage({ type: 'extractOne', buffer: buf, filename: file.name }, [buf]); 
         } catch (err) { queueIndex++; processNextFile(); }
     } 
     else if (name.match(/\.(jpg|jpeg|png|webp)$/)) {
@@ -200,7 +197,6 @@ function handleWorkerMsg(e) {
         els.downloadBtn.disabled = true;
         els.downloadBtn.innerText = "Complete! (Reload to start over)";
         updateProgress("Download Ready", 100);
-        
         dataTransferred = true;
         document.querySelectorAll('.chapter-item').forEach(el => el.style.opacity = '0.5');
     }
@@ -257,28 +253,24 @@ function applyFiltersToAll() {
     updateBadge();
 }
 
-// --- NEW: TOTAL SIZE INDICATOR ---
 function updateBadge() {
     let totalImages = 0;
     let totalSize = 0;
 
     rawGroups.forEach(g => {
         totalImages += g.displayImages.length;
-        // Sum up size of currently valid images
         g.displayImages.forEach(img => totalSize += img.size);
     });
 
     els.badge.style.display = 'inline-block';
     els.badge.innerText = `${rawGroups.length} Files / ${totalImages} imgs`;
 
-    // Update Download Button Text with Size
     if (!els.downloadBtn.disabled && !dataTransferred) {
         const sizeStr = formatBytes(totalSize);
         els.downloadBtn.innerText = `Download All (~${sizeStr})`;
     }
 }
 
-// Helper to format bytes
 function formatBytes(bytes, decimals = 1) {
     if (!+bytes) return '0 B';
     const k = 1024;
@@ -386,7 +378,7 @@ async function toggleChapter(container, group) {
             const div = document.createElement('div');
             div.className = 'filtered-item';
             div.innerHTML = `<img src="${url}" loading="lazy"><div class="filter-reason">${f.reason}</div>`;
-            div.onclick = () => openModal(url, { imgObject: group.allImages[f.originalIdx], reason: f.reason, group: group });
+            div.onclick = () => openModal(url, { imgObject: group.allImages[f.originalIdx], reason: f.reason, group: group }, listGrid);
             div.title = "Click to View & Restore";
             listGrid.appendChild(div);
         });
@@ -411,7 +403,7 @@ function pairImages(images) {
     return pairs;
 }
 
-// --- SAFE BITMAP GENERATOR (Error Handling) ---
+// --- SAFE BITMAP GENERATOR ---
 async function safeGetBitmap(data) {
     try {
         const blob = new Blob([data]);
@@ -421,25 +413,20 @@ async function safeGetBitmap(data) {
         corruptCount++;
         showCorruptWarning();
 
-        // Create Error Placeholder
         const cvs = document.createElement('canvas');
         cvs.width = 800; cvs.height = 1100;
         const ctx = cvs.getContext('2d');
-        
         ctx.fillStyle = "#fee2e2"; 
         ctx.fillRect(0,0,cvs.width,cvs.height);
-        
         ctx.strokeStyle = "#ef4444";
         ctx.lineWidth = 15;
         ctx.strokeRect(20,20,cvs.width-40,cvs.height-40);
-
         ctx.fillStyle = "#b91c1c";
         ctx.font = "bold 60px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("CORRUPT", cvs.width/2, cvs.height/2 - 40);
         ctx.fillText("IMAGE", cvs.width/2, cvs.height/2 + 40);
-
         return await createImageBitmap(cvs);
     }
 }
@@ -469,28 +456,20 @@ function resetCorruptState() {
     if(el) el.style.display = 'none';
 }
 
-// --- MERGE FUNCTION (Updated with Error Handling) ---
+// --- MERGE FUNCTION ---
 async function createMergedUrl(pair, isRTL) {
     const ctx = els.canvas.getContext('2d');
-    
-    // Use safe wrapper
     const b1 = await safeGetBitmap(pair[0].data);
-    
     let b2 = null;
-    if(pair[1]) {
-        b2 = await safeGetBitmap(pair[1].data);
-    }
+    if(pair[1]) b2 = await safeGetBitmap(pair[1].data);
 
     if(!b2) {
-        // Single page
         els.canvas.width = b1.width;
         els.canvas.height = b1.height;
         ctx.drawImage(b1, 0, 0);
     } else {
-        // Side-by-side merge
         els.canvas.width = b1.width + b2.width;
         els.canvas.height = Math.max(b1.height, b2.height);
-        
         ctx.fillStyle="#fff"; 
         ctx.fillRect(0,0,els.canvas.width,els.canvas.height);
 
@@ -509,14 +488,33 @@ function addToGrid(grid, url, isMerge) {
     const div = document.createElement('div');
     div.className = `gallery-item ${isMerge?'merge-item':''}`;
     div.innerHTML = `<img src="${url}" loading="lazy">`;
-    div.onclick = () => openModal(url);
+    div.onclick = () => openModal(url, null, grid);
     grid.appendChild(div);
 }
 
-function openModal(src, restoreContext = null) {
+// --- UPDATED MODAL LOGIC (Navigation + Scroll Lock) ---
+function openModal(src, restoreContext = null, sourceGrid = null) {
     if(dataTransferred) return;
+    
+    // 1. Set Image
     els.modalImg.src = src;
     els.modal.style.display = 'flex';
+    
+    // 2. Lock Scroll
+    document.body.classList.add('no-scroll');
+
+    // 3. Setup Navigation List
+    if (sourceGrid) {
+        const imgs = sourceGrid.querySelectorAll('img');
+        currentModalList = Array.from(imgs).map(img => img.src);
+        currentModalIndex = currentModalList.indexOf(src);
+    } else {
+        currentModalList = [];
+        currentModalIndex = -1;
+    }
+    
+    document.querySelector('.modal-prev').style.display = currentModalList.length > 1 ? 'flex' : 'none';
+    document.querySelector('.modal-next').style.display = currentModalList.length > 1 ? 'flex' : 'none';
 
     if (restoreContext && els.modalActions) {
         currentModalImage = restoreContext.imgObject;
@@ -531,19 +529,44 @@ function openModal(src, restoreContext = null) {
     }
 }
 
+window.changeModalImage = function(direction) {
+    if (currentModalList.length <= 1) return;
+    currentModalIndex += direction;
+    if (currentModalIndex < 0) currentModalIndex = currentModalList.length - 1; 
+    if (currentModalIndex >= currentModalList.length) currentModalIndex = 0;
+    const nextSrc = currentModalList[currentModalIndex];
+    els.modalImg.src = nextSrc;
+    if(els.modalActions) els.modalActions.style.display = 'none';
+};
+
 if(els.modalRestoreBtn) {
     els.modalRestoreBtn.onclick = () => {
         if (currentModalImage && currentModalGroup) {
             currentModalImage.forceKeep = true;
             applyFiltersToAll();
             els.modal.style.display = 'none';
+            document.body.classList.remove('no-scroll');
             clearAndRender();
         }
     };
 }
 
-document.querySelector('.close-modal').onclick = () => els.modal.style.display = 'none';
-els.modal.onclick = (e) => { if(e.target === els.modal) els.modal.style.display = 'none'; };
+document.querySelector('.close-modal').onclick = closeModal;
+els.modal.onclick = (e) => { if(e.target === els.modal) closeModal(); };
+
+function closeModal() {
+    els.modal.style.display = 'none';
+    document.body.classList.remove('no-scroll');
+    currentModalList = [];
+}
+
+document.onkeydown = (e) => {
+    if(els.modal.style.display === 'flex') {
+        if (e.key === 'Escape') closeModal();
+        if (e.key === 'ArrowLeft') changeModalImage(-1);
+        if (e.key === 'ArrowRight') changeModalImage(1);
+    }
+};
 
 // --- DOWNLOAD ---
 els.downloadBtn.onclick = async () => {
@@ -559,8 +582,6 @@ els.downloadBtn.onclick = async () => {
     if(currentMode === 'merge') {
         updateProgress("Merging images for export...", 0);
         const isRTL = document.getElementById('rtl-mode').checked;
-        
-        // Reset corrupt count before final merge run
         resetCorruptState(); 
 
         for(let i=0; i<rawGroups.length; i++) {
@@ -570,18 +591,12 @@ els.downloadBtn.onclick = async () => {
 
             for(let j=0; j<pairs.length; j++) {
                 if(j%5===0) updateProgress(`Merging ${g.groupName} (${j}/${pairs.length})`, (i/rawGroups.length)*100);
-
                 const url = await createMergedUrl(pairs[j], isRTL);
                 const res = await fetch(url);
                 const blob = await res.blob();
                 const buf = await blob.arrayBuffer();
-                
                 transferBuffers.push(buf);
-                mergedImages.push({
-                    name: `page_${String(j).padStart(4,'0')}.jpg`,
-                    data: new Uint8Array(buf),
-                    ext: 'jpg'
-                });
+                mergedImages.push({ name: `page_${String(j).padStart(4,'0')}.jpg`, data: new Uint8Array(buf), ext: 'jpg' });
                 URL.revokeObjectURL(url); 
             }
             finalGroups.push({ groupName: g.groupName, images: mergedImages });
@@ -592,20 +607,13 @@ els.downloadBtn.onclick = async () => {
             groupName: g.groupName,
             images: g.displayImages.map(img => {
                 if(img.data.buffer) transferBuffers.push(img.data.buffer);
-                return {
-                    name: img.name,
-                    data: img.data,
-                    ext: img.ext
-                };
+                return { name: img.name, data: img.data, ext: img.ext };
             })
         }));
     }
 
     updateProgress("Sending to Worker...", 95);
-    worker.postMessage(
-        { type: 'zip', groups: finalGroups, extType: 'cbz' }, 
-        transferBuffers
-    );
+    worker.postMessage({ type: 'zip', groups: finalGroups, extType: 'cbz' }, transferBuffers);
 };
 
 window.setMode = (mode) => {
@@ -628,10 +636,6 @@ document.getElementById('theme-toggle').onclick = () => {
     const newT = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
     html.setAttribute('data-theme', newT);
     saveConfig();
-};
-
-document.onkeydown = (e) => {
-    if(els.modal.style.display === 'flex' && e.key === 'Escape') els.modal.style.display = 'none';
 };
 
 function downloadBlob(blob, name) {
