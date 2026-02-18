@@ -78,11 +78,15 @@
 <div id="action-bar" class="action-bar">
     <button id="add-more-btn" class="btn btn-secondary">Add More</button>
     <button id="download-btn" class="btn">Download All</button>
-    <button id="reset-btn" class="btn btn-danger">Reset</button>
+    <button id="reset-btn" class="btn btn-danger" title="Reset">↺</button>
 </div>
 
 <div id="img-modal" class="modal">
     <div class="close-modal">&times;</div>
+    
+    <button class="modal-nav modal-prev" onclick="changeModalImage(-1)">❮</button>
+    <button class="modal-nav modal-next" onclick="changeModalImage(1)">❯</button>
+
     <div class="modal-content">
         <img id="modal-img" src="">
         
@@ -100,4 +104,4 @@
 <script src="script.js" defer></script>
 
 </body>
-    </html>
+</html>
