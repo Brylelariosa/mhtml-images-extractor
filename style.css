@@ -2,7 +2,7 @@
 [data-theme="dark"] { --primary: #6366f1; --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-sub: #94a3b8; --border: #334155; --panel-bg: #0f172a; --drop-bg: #1e293b; --drop-border: #475569; --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); --modal-bg: rgba(15, 23, 42, 0.98); --warning-bg: #431407; --warning-text: #fdba74; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: start; min-height: 100vh; margin: 0; padding: 20px; padding-bottom: 100px; transition: 0.3s; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: start; min-height: 100vh; margin: 0; padding: 20px; padding-bottom: 120px; /* Extra padding for floating bar */ transition: 0.3s; }
 
 .container { width: 100%; max-width: 900px; }
 .card { background: var(--card-bg); border-radius: 16px; box-shadow: var(--shadow); padding: 1.5rem; border: 1px solid var(--border); }
@@ -64,12 +64,73 @@ input:checked + .slider:before { transform: translateX(16px); }
 .gallery-item.merge-item { aspect-ratio: 4/3; }
 .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
 
-/* Sticky Footer for Actions */
-.action-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card-bg); padding: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); display: none; justify-content: center; gap: 15px; border-top: 1px solid var(--border); z-index: 100; flex-wrap: wrap;}
-.btn { padding: 12px 24px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; background: var(--primary); color: white; min-width: 130px; }
-.btn-secondary { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border); }
-.btn-danger { background: var(--danger); color: white; }
+/* --- COMPACT ACTION BAR (Replaces Sticky Footer) --- */
+.action-bar { 
+    position: fixed; 
+    bottom: 20px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    width: 95%; 
+    max-width: 500px; 
+    background: var(--card-bg); 
+    padding: 8px 12px; 
+    border-radius: 100px; /* Full pill shape */
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15); 
+    display: none; 
+    align-items: center; 
+    justify-content: space-between;
+    gap: 8px; 
+    border: 1px solid var(--border); 
+    z-index: 100; 
+}
+
+/* Common Button Styles */
+.btn { 
+    border: none; 
+    border-radius: 12px; 
+    font-weight: 700; 
+    cursor: pointer; 
+    font-size: 0.9rem; 
+    transition: 0.2s;
+    height: 44px; /* Uniform height */
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+}
 .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* Specific Button Styles */
+#add-more-btn {
+    background: var(--panel-bg); 
+    color: var(--text-main); 
+    border: 1px solid var(--border);
+    padding: 0 16px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+#add-more-btn:hover { background: var(--border); }
+
+#download-btn {
+    background: var(--primary); 
+    color: white; 
+    flex-grow: 1; /* Takes up remaining space */
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+#download-btn:active { transform: scale(0.98); }
+
+#reset-btn {
+    width: 44px; 
+    height: 44px;
+    border-radius: 50%; /* Circle shape */
+    background: rgba(239, 68, 68, 0.1); 
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    font-size: 1.2rem;
+    padding: 0;
+}
+#reset-btn:hover { background: var(--danger); color: white; }
+
 
 /* Modal */
 .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--modal-bg); align-items: center; justify-content: center; backdrop-filter: blur(8px); flex-direction: column; }
@@ -96,7 +157,7 @@ input:checked + .slider:before { transform: translateX(16px); }
 
 .hidden { display: none !important; }
 
-/* --- NEW FILTERED GRID STYLES --- */
+/* --- FILTERED GRID STYLES --- */
 .filtered-section { margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px; }
 .filtered-toggle { 
     font-size: 0.8rem; color: var(--warning-text); background: var(--warning-bg); 
@@ -130,4 +191,4 @@ input:checked + .slider:before { transform: translateX(16px); }
     background: rgba(239, 68, 68, 0.95); color: white;
     font-size: 0.65rem; font-weight: bold; text-align: center;
     padding: 3px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-               }
+                 }
