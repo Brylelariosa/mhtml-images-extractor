@@ -7,6 +7,7 @@ let processingQueue = [];
 let queueIndex = 0;
 let looseImagesBuffer = [];
 let dataTransferred = false;
+let corruptCount = 0; // Track corrupt images
 
 // Modal State
 let currentModalImage = null; 
@@ -45,7 +46,6 @@ const els = {
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
         .then(reg => {
-            // Check for updates periodically
             reg.addEventListener('updatefound', () => {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
@@ -64,7 +64,6 @@ function init() {
         
         worker.onmessage = handleWorkerMsg;
         worker.onerror = (e) => {
-            // Better error message handling
             const msg = e.message ? e.message : "File not found (Offline missing file?)";
             alert("Worker Failed: " + msg + "\n\nTry clearing browser cache for this site.");
             els.downloadBtn.disabled = false;
@@ -130,6 +129,7 @@ async function handleFiles(files) {
         if(confirm("Downloading cleared the memory. Reload to process new files?")) location.reload();
         return;
     }
+    resetCorruptState(); // Clear warnings
     els.drop.style.display = 'none';
     els.progress.style.display = 'block';
     els.actionBar.style.display = 'none';
@@ -386,12 +386,75 @@ function pairImages(images) {
     return pairs;
 }
 
-// --- UPDATED MERGE FUNCTION (Horizontal Only) ---
+// --- SAFE BITMAP GENERATOR (Error Handling) ---
+async function safeGetBitmap(data) {
+    try {
+        const blob = new Blob([data]);
+        return await createImageBitmap(blob);
+    } catch (e) {
+        console.warn("Corrupt image detected, using placeholder.");
+        corruptCount++;
+        showCorruptWarning();
+
+        // Create Error Placeholder
+        const cvs = document.createElement('canvas');
+        cvs.width = 800; cvs.height = 1100;
+        const ctx = cvs.getContext('2d');
+        
+        ctx.fillStyle = "#fee2e2"; 
+        ctx.fillRect(0,0,cvs.width,cvs.height);
+        
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 15;
+        ctx.strokeRect(20,20,cvs.width-40,cvs.height-40);
+
+        ctx.fillStyle = "#b91c1c";
+        ctx.font = "bold 60px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("CORRUPT", cvs.width/2, cvs.height/2 - 40);
+        ctx.fillText("IMAGE", cvs.width/2, cvs.height/2 + 40);
+
+        return await createImageBitmap(cvs);
+    }
+}
+
+function showCorruptWarning() {
+    let el = document.getElementById('corrupt-warn-msg');
+    if(!el) {
+        el = document.createElement('div');
+        el.id = 'corrupt-warn-msg';
+        el.style.color = 'var(--danger)';
+        el.style.background = 'var(--warning-bg)';
+        el.style.padding = '12px';
+        el.style.borderRadius = '8px';
+        el.style.marginTop = '15px';
+        el.style.textAlign = 'center';
+        el.style.fontWeight = 'bold';
+        el.style.border = '1px solid var(--warning-text)';
+        els.progress.appendChild(el);
+    }
+    el.innerText = `⚠️ Warning: ${corruptCount} corrupt image(s) detected and replaced with placeholders.`;
+    el.style.display = 'block';
+}
+
+function resetCorruptState() {
+    corruptCount = 0;
+    const el = document.getElementById('corrupt-warn-msg');
+    if(el) el.style.display = 'none';
+}
+
+// --- MERGE FUNCTION (Updated with Error Handling) ---
 async function createMergedUrl(pair, isRTL) {
     const ctx = els.canvas.getContext('2d');
-    const b1 = await createImageBitmap(new Blob([pair[0].data]));
+    
+    // Use safe wrapper
+    const b1 = await safeGetBitmap(pair[0].data);
+    
     let b2 = null;
-    if(pair[1]) b2 = await createImageBitmap(new Blob([pair[1].data]));
+    if(pair[1]) {
+        b2 = await safeGetBitmap(pair[1].data);
+    }
 
     if(!b2) {
         // Single page
@@ -471,6 +534,9 @@ els.downloadBtn.onclick = async () => {
     if(currentMode === 'merge') {
         updateProgress("Merging images for export...", 0);
         const isRTL = document.getElementById('rtl-mode').checked;
+        
+        // Reset corrupt count before final merge run
+        resetCorruptState(); 
 
         for(let i=0; i<rawGroups.length; i++) {
             const g = rawGroups[i];
@@ -512,44 +578,4 @@ els.downloadBtn.onclick = async () => {
 
     updateProgress("Sending to Worker...", 95);
     worker.postMessage(
-        { type: 'zip', groups: finalGroups, extType: 'cbz' }, 
-        transferBuffers
-    );
-};
-
-window.setMode = (mode) => {
-    if(dataTransferred) return;
-    currentMode = mode;
-    document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
-    document.getElementById(`tab-${mode}`).classList.add('active');
-    els.settingsExtract.classList.toggle('hidden', mode !== 'extract');
-    els.settingsMerge.classList.toggle('hidden', mode === 'extract');
-    clearAndRender();
-};
-
-document.getElementById('reset-btn').onclick = () => {
-    activeUrls.forEach(u => URL.revokeObjectURL(u));
-    location.reload();
-};
-
-document.getElementById('theme-toggle').onclick = () => {
-    const html = document.documentElement;
-    const newT = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-    html.setAttribute('data-theme', newT);
-    saveConfig();
-};
-
-document.onkeydown = (e) => {
-    if(els.modal.style.display === 'flex' && e.key === 'Escape') els.modal.style.display = 'none';
-};
-
-function downloadBlob(blob, name) {
-    const a = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    a.href = url;
-    a.download = name;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 1000);
-}
-
-init();
+        { type: 'zip', 
