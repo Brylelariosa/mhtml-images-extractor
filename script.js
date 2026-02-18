@@ -253,6 +253,7 @@ function applyFiltersToAll() {
     updateBadge();
 }
 
+// --- TOTAL SIZE INDICATOR ---
 function updateBadge() {
     let totalImages = 0;
     let totalSize = 0;
@@ -335,6 +336,7 @@ async function toggleChapter(container, group) {
     const items = currentMode === 'extract' ? group.displayImages : pairImages(group.displayImages);
     const limit = Math.min(items.length, 40);
 
+    // Initial Load
     for(let i=0; i<limit; i++) {
         let url;
         if(currentMode === 'extract') {
@@ -347,19 +349,47 @@ async function toggleChapter(container, group) {
         addToGrid(grid, url, currentMode !== 'extract');
     }
 
+    // Load More Button Logic
     if(items.length > limit) {
-        const more = document.createElement('div');
-        more.innerText = `+${items.length - limit} more pages`;
-        more.style.gridColumn = "1/-1";
-        more.style.textAlign = "center";
-        more.style.padding = "10px";
-        more.style.color = "var(--text-sub)";
-        grid.appendChild(more);
+        const moreContainer = document.createElement('div');
+        moreContainer.style.gridColumn = "1/-1";
+        moreContainer.style.textAlign = "center";
+        moreContainer.style.padding = "20px";
+
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.className = "btn btn-secondary"; 
+        loadMoreBtn.innerText = `Load remaining ${items.length - limit} pages`;
+        loadMoreBtn.style.width = "auto";
+        
+        loadMoreBtn.onclick = async () => {
+            loadMoreBtn.innerText = "Loading...";
+            loadMoreBtn.disabled = true;
+            
+            // Give UI time to update text
+            await new Promise(r => setTimeout(r, 50));
+
+            for(let i=limit; i<items.length; i++) {
+                let url;
+                if(currentMode === 'extract') {
+                    const img = items[i];
+                    url = URL.createObjectURL(new Blob([img.data], {type: 'image/'+img.ext}));
+                } else {
+                    url = await createMergedUrl(items[i], isRTL);
+                }
+                activeUrls.push(url);
+                addToGrid(grid, url, currentMode !== 'extract');
+            }
+            moreContainer.remove(); // Remove button after loading
+        };
+
+        moreContainer.appendChild(loadMoreBtn);
+        grid.appendChild(moreContainer);
     }
 
     container.innerHTML = '';
     container.appendChild(grid);
 
+    // Filtered List Logic
     if (group.filteredList && group.filteredList.length > 0) {
         const filterSection = document.createElement('div');
         filterSection.className = 'filtered-section';
@@ -403,7 +433,7 @@ function pairImages(images) {
     return pairs;
 }
 
-// --- SAFE BITMAP GENERATOR ---
+// --- SAFE BITMAP GENERATOR (Error Handling) ---
 async function safeGetBitmap(data) {
     try {
         const blob = new Blob([data]);
