@@ -130,7 +130,6 @@ function extractSingleMhtml({ buffer, filename }) {
         }
 
         // --- 3. SMART NATURAL SORTING ---
-        // Uses "numeric" mode so "Page 10" comes after "Page 2"
         extracted.sort((a, b) => {
             return a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true, sensitivity: 'base' });
         });
@@ -142,7 +141,7 @@ function extractSingleMhtml({ buffer, filename }) {
             size: item.size 
         }));
 
-        // --- 4. SMART RENAME LOGIC ---
+        // --- 4. SMART RENAME LOGIC (Updated for Padding) ---
         let baseName = filename.replace(/\.mhtml?/i, "");
         baseName = baseName.replace(/_/g, " "); 
         baseName = baseName.replace(/\+/g, " "); 
@@ -154,8 +153,19 @@ function extractSingleMhtml({ buffer, filename }) {
         
         if (nameMatch) {
             const prefix = nameMatch[1].trim();
-            const numberPart = nameMatch[2].trim();
+            let numberPart = nameMatch[2].trim();
             const suffix = nameMatch[3].trim();
+
+            // --- PADDING MODIFICATION ---
+            // Finds the digit sequence inside "Chapter 1" or "Vol 5" and pads it.
+            // "Chapter 1" -> "Chapter 001"
+            // "5" -> "005"
+            // "1110" -> "1110" (ignores because it's already long enough)
+            numberPart = numberPart.replace(/(\d+)/, (match) => {
+                return match.padStart(3, '0');
+            });
+            // ----------------------------
+
             const cleanPrefix = prefix.replace(/[-_]$/, "").trim();
             
             if(cleanPrefix) {
@@ -194,6 +204,7 @@ async function createZip({ groups, extType }) {
         if (totalFiles === 0) throw new Error("No images to zip");
 
         for(const group of groups) {
+            // Ensure folder name is safe
             const cleanGroupName = group.groupName.replace(/[\\/:*?"<>|]/g, "_");
             const folderName = cleanGroupName + "/";
 
@@ -238,4 +249,4 @@ async function createZip({ groups, extType }) {
     } catch(err) {
         self.postMessage({ type: 'error', text: err.message });
     }
-}
+    }
