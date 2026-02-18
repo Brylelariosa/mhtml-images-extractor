@@ -1,4 +1,4 @@
-const CACHE_NAME = 'manga-tool-v4'; // Bumped version
+const CACHE_NAME = 'manga-tool-v5'; // Bumped version
 const ASSETS = [
     './',
     './index.html',
