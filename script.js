@@ -593,10 +593,119 @@ function closeModal() {
 document.onkeydown = (e) => {
     if(els.modal.style.display === 'flex') {
         if (e.key === 'Escape') closeModal();
-        if (e.key === 'ArrowLeft') changeModalImage(-1);
-        if (e.key === 'ArrowRight') changeModalImage(1);
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); window._animateSlide ? window._animateSlide(-1) : changeModalImage(-1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); window._animateSlide ? window._animateSlide(1)  : changeModalImage(1);  }
     }
 };
+
+// --- TOUCH/SWIPE GESTURE SUPPORT ---
+(function initSwipe() {
+    const SWIPE_THRESHOLD = 50;   // Min px to count as a swipe
+    const SWIPE_MAX_VERT  = 100;  // Max vertical drift allowed
+    const ANIM_DURATION   = 300;  // ms for slide animation
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isDragging  = false;
+
+    // Visual swipe hint that briefly appears when modal first opens
+    function showSwipeHint() {
+        if (currentModalList.length <= 1) return;
+        let hint = document.getElementById('swipe-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'swipe-hint';
+            hint.style.cssText = `
+                position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+                background:rgba(0,0,0,0.55); color:white; padding:8px 18px;
+                border-radius:30px; font-size:0.82rem; font-weight:600; pointer-events:none;
+                display:flex; align-items:center; gap:8px; white-space:nowrap;
+                backdrop-filter:blur(6px); border:1px solid rgba(255,255,255,0.15);
+                transition: opacity 0.4s ease;
+            `;
+            hint.innerHTML = '👈 Swipe to navigate 👉';
+            els.modal.appendChild(hint);
+        }
+        hint.style.opacity = '1';
+        clearTimeout(hint._fadeTimer);
+        hint._fadeTimer = setTimeout(() => { hint.style.opacity = '0'; }, 1800);
+    }
+
+    // Animate the image sliding out and new one sliding in
+    function animateSlide(direction) {
+        const img = els.modalImg;
+        const outX = direction > 0 ? '-60px' : '60px';
+        const inX  = direction > 0 ? '60px'  : '-60px';
+
+        // Slide out
+        img.style.transition = `transform ${ANIM_DURATION}ms ease, opacity ${ANIM_DURATION}ms ease`;
+        img.style.transform  = `translateX(${outX})`;
+        img.style.opacity    = '0';
+
+        setTimeout(() => {
+            changeModalImage(direction);
+            // Reset position instantly (no transition), then animate in
+            img.style.transition = 'none';
+            img.style.transform  = `translateX(${inX})`;
+            img.style.opacity    = '0';
+
+            // Force reflow so the browser registers the reset
+            void img.offsetWidth;
+
+            img.style.transition = `transform ${ANIM_DURATION}ms ease, opacity ${ANIM_DURATION}ms ease`;
+            img.style.transform  = 'translateX(0)';
+            img.style.opacity    = '1';
+        }, ANIM_DURATION);
+    }
+
+    els.modal.addEventListener('touchstart', (e) => {
+        if (currentModalList.length <= 1) return;
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
+        isDragging  = true;
+
+        // Live drag feedback
+        els.modalImg.style.transition = 'none';
+    }, { passive: true });
+
+    els.modal.addEventListener('touchmove', (e) => {
+        if (!isDragging || currentModalList.length <= 1) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        // Shift image slightly to follow finger
+        els.modalImg.style.transform = `translateX(${dx * 0.3}px)`;
+    }, { passive: true });
+
+    els.modal.addEventListener('touchend', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+
+        // Reset image position
+        els.modalImg.style.transition = `transform ${ANIM_DURATION}ms ease, opacity ${ANIM_DURATION}ms ease`;
+        els.modalImg.style.transform  = 'translateX(0)';
+        els.modalImg.style.opacity    = '1';
+
+        if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_MAX_VERT) {
+            // Enough horizontal swipe — navigate
+            animateSlide(dx < 0 ? 1 : -1);
+        }
+    }, { passive: true });
+
+    // Expose for keyboard handler
+    window._animateSlide = animateSlide;
+
+    // Show hint whenever modal opens with multiple images
+    const _origOpenModal = openModal;
+    window.openModal = function(...args) {
+        _origOpenModal(...args);
+        // Small delay so list is populated first
+        setTimeout(showSwipeHint, 200);
+    };
+    // Make local calls use the patched version too
+    window._showSwipeHint = showSwipeHint;
+})();
 
 // --- DOWNLOAD ---
 els.downloadBtn.onclick = async () => {
