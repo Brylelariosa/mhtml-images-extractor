@@ -286,6 +286,16 @@ function formatBytes(bytes, decimals = 1) {
 
 // --- RENDER LOGIC ---
 function clearAndRender() {
+    // 1. Remember which chapters are currently open
+    const expandedIndices = new Set();
+    const currentItems = els.list.querySelectorAll('.chapter-item');
+    currentItems.forEach((item, idx) => {
+        const body = item.querySelector('.chapter-body');
+        if (body && body.classList.contains('expanded')) {
+            expandedIndices.add(idx);
+        }
+    });
+
     els.list.innerHTML = '';
     rawGroups.forEach((group, idx) => {
         const item = document.createElement('div');
@@ -316,6 +326,11 @@ function clearAndRender() {
         item.appendChild(body);
 
         els.list.appendChild(item);
+
+        // 2. Automatically reopen the chapter if it was open before
+        if (expandedIndices.has(idx)) {
+            toggleChapter(body, group);
+        }
     });
 }
 
