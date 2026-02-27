@@ -63,75 +63,40 @@ input:checked + .slider:before { transform: translateX(16px); }
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
 .gallery-grid.merge-mode { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 
-.gallery-item { position: relative; background: var(--panel-bg); border-radius: 6px; overflow: hidden; cursor: zoom-in; aspect-ratio: 2/3; border: 1px solid var(--border); }
+.gallery-item { position: relative; background: var(--panel-bg); border-radius: 6px; overflow: hidden; cursor: zoom-in; aspect-ratio: 2/3; border: 1px solid var(--border); transition: 0.2s; }
 .gallery-item.merge-item { aspect-ratio: 4/3; }
 .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
 
-/* --- COMPACT ACTION BAR (Replaces Sticky Footer) --- */
+/* Multi-Select Styles */
+.gallery-item.selected { border: 3px solid var(--danger); transform: scale(0.92); opacity: 0.8; }
+.gallery-item.selected::after {
+    content: '✓'; position: absolute; top: 5px; right: 5px; background: var(--danger);
+    color: white; width: 22px; height: 22px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-weight: bold; font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+/* --- COMPACT ACTION BAR --- */
 .action-bar { 
-    position: fixed; 
-    bottom: 20px; 
-    left: 50%; 
-    transform: translateX(-50%); 
-    width: 95%; 
-    max-width: 500px; 
-    background: var(--card-bg); 
-    padding: 8px 12px; 
-    border-radius: 100px; 
-    box-shadow: 0 8px 30px rgba(0,0,0,0.15); 
-    display: none; 
-    align-items: center; 
-    justify-content: space-between;
-    gap: 8px; 
-    border: 1px solid var(--border); 
-    z-index: 100; 
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); 
+    width: 95%; max-width: 500px; background: var(--card-bg); padding: 8px 12px; 
+    border-radius: 100px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); display: none; 
+    align-items: center; justify-content: space-between; gap: 8px; 
+    border: 1px solid var(--border); z-index: 100; 
 }
 
 /* Common Button Styles */
-.btn { 
-    border: none; 
-    border-radius: 12px; 
-    font-weight: 700; 
-    cursor: pointer; 
-    font-size: 0.9rem; 
-    transition: 0.2s;
-    height: 44px; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-}
+.btn { border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 0.9rem; transition: 0.2s; height: 44px; display: flex; align-items: center; justify-content: center; }
 .btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
 /* Specific Button Styles */
-#add-more-btn {
-    background: var(--panel-bg); 
-    color: var(--text-main); 
-    border: 1px solid var(--border);
-    padding: 0 16px;
-    border-radius: 20px;
-    white-space: nowrap;
-}
+#add-more-btn { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border); padding: 0 16px; border-radius: 20px; white-space: nowrap; }
 #add-more-btn:hover { background: var(--border); }
 
-#download-btn {
-    background: var(--primary); 
-    color: white; 
-    flex-grow: 1; 
-    border-radius: 20px;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
-}
+#download-btn { background: var(--primary); color: white; flex-grow: 1; border-radius: 20px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25); }
 #download-btn:active { transform: scale(0.98); }
 
-#reset-btn {
-    width: 44px; 
-    height: 44px;
-    border-radius: 50%; 
-    background: rgba(239, 68, 68, 0.1); 
-    color: var(--danger);
-    border: 1px solid rgba(239, 68, 68, 0.15);
-    font-size: 1.2rem;
-    padding: 0;
-}
+#reset-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.15); font-size: 1.2rem; padding: 0; }
 #reset-btn:hover { background: var(--danger); color: white; }
 
 /* Modal */
@@ -141,83 +106,28 @@ input:checked + .slider:before { transform: translateX(16px); }
 .close-modal { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; cursor: pointer; z-index: 2002; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
 
 /* Modal Navigation */
-.modal-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.3);
-    color: white;
-    border: none;
-    font-size: 2.5rem;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: 0.2s;
-    user-select: none;
-    z-index: 2005; 
-}
+.modal-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0, 0, 0, 0.3); color: white; border: none; font-size: 2.5rem; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; user-select: none; z-index: 2005; }
 .modal-nav:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-50%) scale(1.1); }
 .modal-nav:active { transform: translateY(-50%) scale(0.95); }
 .modal-prev { left: 20px; }
 .modal-next { right: 20px; }
 
-@media (max-height: 500px) {
-    .modal-nav { width: 40px; height: 40px; font-size: 1.5rem; }
-}
+@media (max-height: 500px) { .modal-nav { width: 40px; height: 40px; font-size: 1.5rem; } }
 
 /* Modal Action Bar */
-.modal-actions {
-    margin-top: 15px;
-    background: rgba(30, 41, 59, 0.8);
-    padding: 12px 20px;
-    border-radius: 30px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: white;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    text-align: center;
-    min-width: 200px;
-}
+.modal-actions { margin-top: 15px; background: rgba(30, 41, 59, 0.8); padding: 12px 20px; border-radius: 30px; display: flex; flex-direction: column; align-items: center; color: white; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.3); text-align: center; min-width: 200px; }
 
 .hidden { display: none !important; }
 
 /* Filtered Grid */
 .filtered-section { margin-top: 15px; border-top: 1px dashed var(--border); padding-top: 10px; }
-.filtered-toggle { 
-    font-size: 0.8rem; color: var(--warning-text); background: var(--warning-bg); 
-    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; 
-    display: inline-block; user-select: none; transition: 0.2s; border: 1px solid rgba(0,0,0,0.05); 
-}
+.filtered-toggle { font-size: 0.8rem; color: var(--warning-text); background: var(--warning-bg); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; display: inline-block; user-select: none; transition: 0.2s; border: 1px solid rgba(0,0,0,0.05); }
 .filtered-toggle:hover { filter: brightness(0.95); }
 
-.filtered-grid {
-    display: none; 
-    margin-top: 12px;
-    background: var(--panel-bg);
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 8px;
-}
-.filtered-item {
-    position: relative; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden;
-    background: var(--card-bg); border: 2px solid var(--danger); cursor: zoom-in;
-}
+.filtered-grid { display: none; margin-top: 12px; background: var(--panel-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border); grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+.filtered-item { position: relative; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; background: var(--card-bg); border: 2px solid var(--danger); cursor: zoom-in; }
 .filtered-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; transition: 0.2s; }
 .filtered-item:hover { border-color: var(--primary); }
 .filtered-item:hover img { opacity: 1; }
 
-.filter-reason {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    background: rgba(239, 68, 68, 0.95); color: white;
-    font-size: 0.65rem; font-weight: bold; text-align: center;
-    padding: 3px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
+.filter-reason { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(239, 68, 68, 0.95); color: white; font-size: 0.65rem; font-weight: bold; text-align: center; padding: 3px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
