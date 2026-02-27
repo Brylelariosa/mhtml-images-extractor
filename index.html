@@ -77,8 +77,15 @@
 
 <div id="action-bar" class="action-bar">
     <button id="add-more-btn" class="btn btn-secondary">Add More</button>
+    <button id="select-mode-btn" class="btn btn-secondary" style="background:var(--panel-bg); border:1px solid var(--border); border-radius:20px; padding:0 12px; color:var(--text-main);">☑️ Select</button>
     <button id="download-btn" class="btn">Download All</button>
     <button id="reset-btn" class="btn btn-danger" title="Reset">↺</button>
+</div>
+
+<div id="selection-bar" class="action-bar" style="display:none; background: var(--danger); border-color: var(--danger);">
+    <span id="select-count" style="color:white; font-weight:bold; padding-left:10px;">0 Selected</span>
+    <button id="delete-selected-btn" class="btn" style="background:white; color:var(--danger); flex-grow:1; margin:0 10px; border-radius:20px;">🗑️ Delete Selected</button>
+    <button id="cancel-select-btn" class="btn btn-secondary" style="background:rgba(255,255,255,0.2); color:white; border:none; padding:0 15px; border-radius:20px;">Cancel</button>
 </div>
 
 <div id="img-modal" class="modal">
